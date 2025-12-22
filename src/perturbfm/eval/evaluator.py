@@ -14,6 +14,7 @@ from perturbfm.eval.metrics_scperturbench import compute_scperturbench_metrics
 from perturbfm.eval.metrics_perturbench import compute_perturbench_metrics
 from perturbfm.eval.uncertainty_metrics import compute_uncertainty_metrics
 from perturbfm.eval.report import render_report
+from perturbfm.models.uncertainty.conformal import conformal_intervals
 from perturbfm.train.trainer import (
     fit_predict_baseline,
     fit_predict_perturbfm_v0,
@@ -21,12 +22,13 @@ from perturbfm.train.trainer import (
     fit_predict_perturbfm_v2,
     get_baseline,
 )
-from perturbfm.utils.hashing import stable_json_dumps
+from perturbfm.utils.hashing import stable_json_dumps, sha256_json
+from perturbfm.utils.config import config_hash
 
 
-def _default_run_id(split_hash: str, model_name: str) -> str:
+def _default_run_id(split_hash: str, model_name: str, cfg_hash: str) -> str:
     ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-    return f"{ts}_{split_hash[:7]}_{model_name}"
+    return f"{ts}_{split_hash[:7]}_{model_name}_{cfg_hash}"
 
 
 def _write_json(path: Path, payload: Dict[str, object]) -> None:
@@ -61,16 +63,26 @@ def run_baseline(
     split_hash: str,
     baseline_name: str,
     out_dir: Optional[str] = None,
+    ensemble_size: int = 1,
+    conformal: bool = False,
     **kwargs,
 ) -> Path:
     ds = PerturbDataset.load_artifact(data_path)
     store = SplitStore.default()
     split = store.load(split_hash)
 
-    model = get_baseline(baseline_name, **kwargs)
-    preds = fit_predict_baseline(model, ds, split)
+    def _single():
+        model = get_baseline(baseline_name, **kwargs)
+        return fit_predict_baseline(model, ds, split)
 
-    run_id = _default_run_id(split_hash, baseline_name)
+    if ensemble_size > 1:
+        preds = _ensemble_predictions(_single, ensemble_size)
+    else:
+        preds = _single()
+
+    cfg = {"model": {"name": baseline_name, **kwargs}, "ensemble": ensemble_size, "conformal": conformal}
+    cfg_hash = config_hash(cfg)
+    run_id = _default_run_id(split_hash, baseline_name, cfg_hash)
     run_dir = Path(out_dir) if out_dir else Path("runs") / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
 
@@ -82,6 +94,9 @@ def run_baseline(
     metrics_pb = compute_perturbench_metrics(y_true, preds["mean"], subset.obs)
     ood_labels = subset.obs.get("is_ood") if isinstance(subset.obs, dict) else None
     metrics_unc = compute_uncertainty_metrics(y_true, preds["mean"], preds["var"], ood_labels=ood_labels)
+    if conformal and len(split.val_idx) > 0:
+        residuals = np.abs(subset.delta - preds["mean"])
+        metrics_unc["conformal"] = conformal_intervals(residuals, alphas=[0.5, 0.2, 0.1, 0.05])
 
     metrics = {"scperturbench": metrics_sc, "perturbench": metrics_pb, "uncertainty": metrics_unc}
     _require_metrics_complete(metrics)
@@ -90,8 +105,12 @@ def run_baseline(
 
     config = {
         "data_path": data_path,
+        "data_hash": _dataset_hash(Path(data_path)),
         "split_hash": split_hash,
+        "config_hash": cfg_hash,
         "model": {"name": baseline_name, **kwargs},
+        "ensemble": ensemble_size,
+        "conformal": conformal,
     }
     _write_json(run_dir / "config.json", config)
     (run_dir / "split_hash.txt").write_text(split_hash + "\n", encoding="utf-8")
@@ -106,14 +125,22 @@ def run_perturbfm_v0(
     data_path: str,
     split_hash: str,
     out_dir: Optional[str] = None,
+    ensemble_size: int = 1,
+    conformal: bool = False,
     **kwargs,
 ) -> Path:
     ds = PerturbDataset.load_artifact(data_path)
     store = SplitStore.default()
     split = store.load(split_hash)
 
-    preds = fit_predict_perturbfm_v0(ds, split, **kwargs)
-    run_id = _default_run_id(split_hash, "perturbfm_v0")
+    def _single():
+        return fit_predict_perturbfm_v0(ds, split, **kwargs)
+
+    preds = _ensemble_predictions(_single, ensemble_size) if ensemble_size > 1 else _single()
+
+    cfg = {"model": {"name": "perturbfm_v0", **kwargs}, "ensemble": ensemble_size, "conformal": conformal}
+    cfg_hash = config_hash(cfg)
+    run_id = _default_run_id(split_hash, "perturbfm_v0", cfg_hash)
     run_dir = Path(out_dir) if out_dir else Path("runs") / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
 
@@ -125,13 +152,24 @@ def run_perturbfm_v0(
     metrics_pb = compute_perturbench_metrics(y_true, preds["mean"], subset.obs)
     ood_labels = subset.obs.get("is_ood") if isinstance(subset.obs, dict) else None
     metrics_unc = compute_uncertainty_metrics(y_true, preds["mean"], preds["var"], ood_labels=ood_labels)
+    if conformal and len(split.val_idx) > 0:
+        residuals = np.abs(subset.delta - preds["mean"])
+        metrics_unc["conformal"] = conformal_intervals(residuals, alphas=[0.5, 0.2, 0.1, 0.05])
 
     metrics = {"scperturbench": metrics_sc, "perturbench": metrics_pb, "uncertainty": metrics_unc}
     _require_metrics_complete(metrics)
     _write_json(run_dir / "metrics.json", metrics)
     _write_json(run_dir / "calibration.json", metrics_unc)
 
-    config = {"data_path": data_path, "split_hash": split_hash, "model": {"name": "perturbfm_v0", **kwargs}}
+    config = {
+        "data_path": data_path,
+        "data_hash": _dataset_hash(Path(data_path)),
+        "split_hash": split_hash,
+        "config_hash": cfg_hash,
+        "model": {"name": "perturbfm_v0", **kwargs},
+        "ensemble": ensemble_size,
+        "conformal": conformal,
+    }
     _write_json(run_dir / "config.json", config)
     (run_dir / "split_hash.txt").write_text(split_hash + "\n", encoding="utf-8")
 
@@ -146,14 +184,22 @@ def run_perturbfm_v1(
     adjacency,
     pert_gene_masks,
     out_dir: Optional[str] = None,
+    ensemble_size: int = 1,
+    conformal: bool = False,
     **kwargs,
 ) -> Path:
     ds = PerturbDataset.load_artifact(data_path)
     store = SplitStore.default()
     split = store.load(split_hash)
 
-    preds = fit_predict_perturbfm_v1(ds, split, adjacency=adjacency, pert_gene_masks=pert_gene_masks, **kwargs)
-    run_id = _default_run_id(split_hash, "perturbfm_v1")
+    def _single():
+        return fit_predict_perturbfm_v1(ds, split, adjacency=adjacency, pert_gene_masks=pert_gene_masks, **kwargs)
+
+    preds = _ensemble_predictions(_single, ensemble_size) if ensemble_size > 1 else _single()
+
+    cfg = {"model": {"name": "perturbfm_v1", **kwargs}, "ensemble": ensemble_size, "conformal": conformal}
+    cfg_hash = config_hash(cfg)
+    run_id = _default_run_id(split_hash, "perturbfm_v1", cfg_hash)
     run_dir = Path(out_dir) if out_dir else Path("runs") / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
 
@@ -165,12 +211,23 @@ def run_perturbfm_v1(
     metrics_pb = compute_perturbench_metrics(y_true, preds["mean"], subset.obs)
     ood_labels = subset.obs.get("is_ood") if isinstance(subset.obs, dict) else None
     metrics_unc = compute_uncertainty_metrics(y_true, preds["mean"], preds["var"], ood_labels=ood_labels)
+    if conformal and len(split.val_idx) > 0:
+        residuals = np.abs(subset.delta - preds["mean"])
+        metrics_unc["conformal"] = conformal_intervals(residuals, alphas=[0.5, 0.2, 0.1, 0.05])
 
     metrics = {"scperturbench": metrics_sc, "perturbench": metrics_pb, "uncertainty": metrics_unc}
     _write_json(run_dir / "metrics.json", metrics)
     _write_json(run_dir / "calibration.json", metrics_unc)
 
-    config = {"data_path": data_path, "split_hash": split_hash, "model": {"name": "perturbfm_v1", **kwargs}}
+    config = {
+        "data_path": data_path,
+        "data_hash": _dataset_hash(Path(data_path)),
+        "split_hash": split_hash,
+        "config_hash": cfg_hash,
+        "model": {"name": "perturbfm_v1", **kwargs},
+        "ensemble": ensemble_size,
+        "conformal": conformal,
+    }
     _write_json(run_dir / "config.json", config)
     (run_dir / "split_hash.txt").write_text(split_hash + "\n", encoding="utf-8")
 
@@ -185,19 +242,27 @@ def run_perturbfm_v2(
     adjacency,
     pert_gene_masks=None,
     out_dir: Optional[str] = None,
+    ensemble_size: int = 1,
+    conformal: bool = False,
     **kwargs,
 ) -> Path:
     ds = PerturbDataset.load_artifact(data_path)
     store = SplitStore.default()
     split = store.load(split_hash)
 
-    preds = fit_predict_perturbfm_v2(
-        ds,
-        split,
-        adjacencies=adjacency,
-        **kwargs,
-    )
-    run_id = _default_run_id(split_hash, "perturbfm_v2")
+    def _single():
+        return fit_predict_perturbfm_v2(
+            ds,
+            split,
+            adjacencies=adjacency,
+            **kwargs,
+        )
+
+    preds = _ensemble_predictions(_single, ensemble_size) if ensemble_size > 1 else _single()
+
+    cfg = {"model": {"name": "perturbfm_v2", **kwargs}, "ensemble": ensemble_size, "conformal": conformal}
+    cfg_hash = config_hash(cfg)
+    run_id = _default_run_id(split_hash, "perturbfm_v2", cfg_hash)
     run_dir = Path(out_dir) if out_dir else Path("runs") / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
 
@@ -209,13 +274,24 @@ def run_perturbfm_v2(
     metrics_pb = compute_perturbench_metrics(y_true, preds["mean"], subset.obs)
     ood_labels = subset.obs.get("is_ood") if isinstance(subset.obs, dict) else None
     metrics_unc = compute_uncertainty_metrics(y_true, preds["mean"], preds["var"], ood_labels=ood_labels)
+    if conformal and len(split.val_idx) > 0:
+        residuals = np.abs(subset.delta - preds["mean"])
+        metrics_unc["conformal"] = conformal_intervals(residuals, alphas=[0.5, 0.2, 0.1, 0.05])
 
     metrics = {"scperturbench": metrics_sc, "perturbench": metrics_pb, "uncertainty": metrics_unc}
     _require_metrics_complete(metrics)
     _write_json(run_dir / "metrics.json", metrics)
     _write_json(run_dir / "calibration.json", metrics_unc)
 
-    config = {"data_path": data_path, "split_hash": split_hash, "model": {"name": "perturbfm_v2", **kwargs}}
+    config = {
+        "data_path": data_path,
+        "data_hash": _dataset_hash(Path(data_path)),
+        "split_hash": split_hash,
+        "config_hash": cfg_hash,
+        "model": {"name": "perturbfm_v2", **kwargs},
+        "ensemble": ensemble_size,
+        "conformal": conformal,
+    }
     _write_json(run_dir / "config.json", config)
     (run_dir / "split_hash.txt").write_text(split_hash + "\n", encoding="utf-8")
 

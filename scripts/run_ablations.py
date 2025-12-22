@@ -27,6 +27,7 @@ from perturbfm.eval.evaluator import (
     run_perturbfm_v1,
     run_perturbfm_v2,
 )
+from perturbfm.utils.hashing import stable_json_dumps
 
 
 def main():
@@ -51,9 +52,11 @@ def main():
             run_dir = run_perturbfm_v2(args.data, args.split, adjacency=None, **{k: v for k, v in cfg.items() if k != "kind"})
         else:
             raise ValueError(f"Unknown kind {kind}")
-        results.append({"config": cfg, "run_dir": str(run_dir)})
+        metrics_path = Path(run_dir) / "metrics.json"
+        metrics = json.loads(metrics_path.read_text()) if metrics_path.exists() else {}
+        results.append({"config": cfg, "run_dir": str(run_dir), "metrics": metrics})
 
-    Path(args.out).write_text(json.dumps(results, indent=2), encoding="utf-8")
+    Path(args.out).write_text(stable_json_dumps(results), encoding="utf-8")
     print(f"Wrote summary to {args.out}")
 
 

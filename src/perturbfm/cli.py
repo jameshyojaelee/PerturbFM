@@ -84,6 +84,8 @@ def _add_train(subparsers: argparse._SubParsersAction) -> None:
         ],
     )
     baseline.add_argument("--alpha", type=float, default=1.0, help="Ridge regularization (ridge baseline only).")
+    baseline.add_argument("--ensemble-size", type=int, default=1)
+    baseline.add_argument("--conformal", action="store_true")
     baseline.add_argument("--out", default=None, help="Optional output run directory.")
     baseline.set_defaults(func=_cmd_train_baseline)
 
@@ -97,6 +99,8 @@ def _add_train(subparsers: argparse._SubParsersAction) -> None:
     v0.add_argument("--no-basal", action="store_true")
     v0.add_argument("--no-context", action="store_true")
     v0.add_argument("--no-perturbation", action="store_true")
+    v0.add_argument("--ensemble-size", type=int, default=1)
+    v0.add_argument("--conformal", action="store_true")
     v0.add_argument("--out", default=None, help="Optional output run directory.")
     v0.set_defaults(func=_cmd_train_perturbfm_v0)
 
@@ -111,6 +115,8 @@ def _add_train(subparsers: argparse._SubParsersAction) -> None:
     v1.add_argument("--device", default="cpu")
     v1.add_argument("--no-graph", action="store_true")
     v1.add_argument("--no-gating", action="store_true")
+    v1.add_argument("--ensemble-size", type=int, default=1)
+    v1.add_argument("--conformal", action="store_true")
     v1.add_argument("--out", default=None, help="Optional output run directory.")
     v1.set_defaults(func=_cmd_train_perturbfm_v1)
 
@@ -125,6 +131,8 @@ def _add_train(subparsers: argparse._SubParsersAction) -> None:
     v2.add_argument("--no-contextual-operator", action="store_true")
     v2.add_argument("--num-bases", type=int, default=4)
     v2.add_argument("--adjacency", action="append", default=None, help="Path to .npz with key 'adjacency' (may be provided multiple times for multi-graph).")
+    v2.add_argument("--ensemble-size", type=int, default=1)
+    v2.add_argument("--conformal", action="store_true")
     v2.add_argument("--out", default=None, help="Optional output run directory.")
     v2.set_defaults(func=_cmd_train_perturbfm_v2)
 
@@ -255,6 +263,8 @@ def _cmd_train_baseline(args: argparse.Namespace) -> int:
         data_path=args.data,
         split_hash=args.split,
         baseline_name=args.baseline,
+        ensemble_size=args.ensemble_size,
+        conformal=args.conformal,
         out_dir=args.out,
         **kwargs,
     )
@@ -276,6 +286,8 @@ def _cmd_train_perturbfm_v0(args: argparse.Namespace) -> int:
         use_basal=not args.no_basal,
         use_context=not args.no_context,
         use_perturbation=not args.no_perturbation,
+        ensemble_size=args.ensemble_size,
+        conformal=args.conformal,
     )
     print(f"run_dir={run_dir}")
     return 0
@@ -309,6 +321,8 @@ def _cmd_train_perturbfm_v1(args: argparse.Namespace) -> int:
         device=args.device,
         use_graph=not args.no_graph,
         use_gating=not args.no_gating,
+        ensemble_size=args.ensemble_size,
+        conformal=args.conformal,
     )
     print(f"run_dir={run_dir}")
     return 0
@@ -337,6 +351,8 @@ def _cmd_train_perturbfm_v2(args: argparse.Namespace) -> int:
         use_gating=not args.no_gating,
         contextual_operator=not args.no_contextual_operator,
         num_bases=args.num_bases,
+        ensemble_size=args.ensemble_size,
+        conformal=args.conformal,
     )
     print(f"run_dir={run_dir}")
     return 0
