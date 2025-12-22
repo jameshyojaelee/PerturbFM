@@ -1,351 +1,275 @@
-# Codex Mega-Prompts — PerturbFM bootstrap
+# Codex Mega-Prompts — PerturbFM roadmap (post-bootstrap)
+
+Copy/paste these prompts into Codex **in order**. These are designed to follow the updated direction in:
+
+- `project_overview.md` (see v2 CGIO spec in section 8.4)
+- `current_state.md` (exec summary + capability matrix)
+- `README.md` (current repo status + known gaps)
+
+Assumption: the repo scaffold + baseline v0/v1 code already exists (i.e., the “bootstrap” is done). These prompts focus on what’s still needed for credible benchmarking + a novel model.
 
 ---
 
-## Prompt 1 — Scaffold the repo (exact skeleton + packaging)
+## Prompt 0 — Preflight: repo health + test runner + invariants
 
 ```text
 You are an agentic coding assistant working inside the `PerturbFM` repo.
 
-Goal
-- Bootstrap the repository into the exact skeleton described in `project_overview.md` (section “Repository architecture (PerturbFM)”).
-- Make the package pip-installable (`pip install -e .`) with a working CLI entrypoint.
+Read first
+- `project_overview.md` (hard rules + v2 CGIO spec)
+- `current_state.md` (failure modes + what “superior” means)
+- `README.md` (known gaps)
 
-Hard rules (do not violate)
-1) OOD splits are immutable artifacts: versioned, hash-locked, stored; experiments must log split hash; no silent regeneration.
-2) No single-metric reporting: evaluation code must be structured so “partial metrics” outputs are considered invalid.
-3) Uncertainty must be evaluated: calibration + OOD uncertainty separation will be mandatory later; design APIs accordingly.
-4) Licensing isolation: scPerturBench (GPL-3.0) is external-only (clone into `third_party/`, gitignored). Do NOT vendor or copy GPL code into core package.
+Goal
+- Make it easy to run a reliable “repo health” check in diverse environments.
+- Enforce key invariants early (no silent split regen, no partial metric reporting).
 
 Scope
-- Create the full directory/file skeleton exactly as specified.
-- Provide minimal-but-clean implementations for:
-  - `src/perturbfm/cli.py` (CLI skeleton)
-  - `src/perturbfm/utils/{seeds.py,logging.py,hashing.py}`
-  - `src/perturbfm/config/*.yaml` (reasonable defaults, but keep minimal)
-- Create scripts in `scripts/` as safe placeholders (they can clone benchmarks later, but should not auto-run downloads).
-- Add `.gitignore` that ignores `runs/` and `third_party/` (and typical Python junk).
-- Create minimal tests that validate core invariants you implement in this prompt (e.g., hashing stability).
-
-Important constraints
-- Do not add heavy dependencies without asking first. Prefer stdlib + `numpy` + `torch` + `pyyaml` + `pytest` only if truly needed.
-- Keep implementations small, but real (no empty files unless unavoidable).
-- Keep the repo permissively licensed by default (do not introduce GPL code or links into the library).
-
-Implementation details
-1) Build system / packaging:
-   - Use `pyproject.toml` with a `src/` layout (`src/perturbfm/...`).
-   - Provide a console script entrypoint: `perturbfm = perturbfm.cli:main`.
-   - Make `pytest` runnable.
-2) CLI:
-   - Use stdlib `argparse` (avoid extra deps).
-   - Subcommands (stubs are fine): `doctor`, `config`, `data`, `splits`, `train`, `eval`.
-   - Ensure each subcommand has its own `--help`.
-3) Hashing utilities:
-   - Implement a stable `sha256` hash for “JSON-able” objects with deterministic key ordering.
-   - This will be used for split hashes and config hashes later.
-4) Logging utilities:
-   - Provide a logger helper that writes both to stdout and optionally to a run directory.
-5) Seeding utilities:
-   - Implement deterministic seeding for `random`, `numpy`, and `torch` (and CUDA if available).
-
-Verification (run these commands)
-- `python -m pip install -e .`
-- `python -c "import perturbfm; print('ok')"`
-- `perturbfm --help`
-- `pytest -q`
-
-Deliverables checklist
-- All files/dirs in the exact skeleton exist.
-- `runs/` and `third_party/` exist and are gitignored.
-- CLI works and imports package successfully.
-- Tests pass.
-```
-
----
-
-## Prompt 2 — Canonical dataset abstraction + registry + adapters (PerturBench first)
-
-```text
-You are an agentic coding assistant working inside the `PerturbFM` repo.
-
-Goal
-- Implement the canonical data abstraction described in `project_overview.md` (“Canonical object: PerturbDataset”).
-- Implement the dataset registry + first adapter scaffold (PerturBench), plus a safe stub for scPerturBench.
-
-Hard rules to enforce in code structure
-- Adapters MUST map into `PerturbDataset` (single canonical representation).
-- scPerturBench remains external-only (no vendoring; no importing their code).
-
-Scope (implement in these files)
-- `src/perturbfm/data/canonical.py`
-  - Define `PerturbDataset` (dataclass or lightweight class).
-  - Fields (as in overview): `X_control`, `X_pert`, `delta`, `obs`, `var`, `metadata`.
-  - `obs` may be a pandas DataFrame or a dict of 1D arrays; pick one and be consistent throughout.
-  - Provide `validate()` that checks shapes, required columns in `obs`, and delta consistency when both X_control/X_pert are present.
-  - Provide convenience helpers: `.n_obs`, `.n_genes`, `.to(device)`, and slicing by indices.
-- `src/perturbfm/data/registry.py`
-  - Implement a registry that can `register(name, loader_fn)` and `load(name, **kwargs)`.
-  - Add a built-in “synthetic” dataset generator used for unit tests and for `perturbfm doctor` / smoke tests.
-- `src/perturbfm/data/transforms.py`
-  - Implement basic transforms used across adapters: matching controls, computing deltas, standardization utilities (minimal).
-- `src/perturbfm/data/adapters/perturbench.py`
-  - Implement a `PerturBenchAdapter` that can:
-    - load from a local path (do not auto-download by default)
-    - map to `PerturbDataset`
-    - optionally read “official splits” if present (design the API; actual integration can be TODO if benchmark not available locally)
-- `src/perturbfm/data/adapters/scperturbench.py`
-  - Create a stub adapter with clear errors explaining licensing isolation and how to place external code/data under `third_party/`.
-
-CLI integration
-- Add a CLI command: `perturbfm data make-synth --out <path>` that writes a small synthetic dataset artifact (e.g., `.npz` + `.json`), and `perturbfm data info <path>` to inspect it.
-- Keep the artifact format simple and documented.
-- Specify a minimal schema in docs and CLI output (example):
-  - `data.npz` keys: `X_control`, `X_pert`, `delta` (all float32, shape `[N, G]`), and optionally `obs_idx` (int64, shape `[N]`).
-  - `meta.json` keys: `obs` (table with required columns), `var` (gene identifiers list), `metadata` (freeform dict).
-
-Tests
-- Add unit tests that:
-  - construct a small synthetic `PerturbDataset`
-  - validate required columns (`pert_id`, `context_id`, `batch_id`, `is_control`, `covariates` optional/allowed)
-  - verify slicing preserves alignment
-  - verify `delta = X_pert - matched_control` invariant when applicable
-
-Dependencies
-- Prefer `numpy` + `torch` + `pandas` (only if needed for `obs`). If you add new deps, ask first.
-
-Verification
-- `pytest -q`
-- `perturbfm data make-synth --help`
-```
-
----
-
-## Prompt 3 — Unified split system (hash-locked, stored, no silent regen)
-
-```text
-You are an agentic coding assistant working inside the `PerturbFM` repo.
-
-Goal
-- Implement the unified split system described in `project_overview.md` (“Unified split system (critical to claim validity)”).
-- Splits must be immutable, hash-locked artifacts; every run must log the split hash.
-
-Scope
-- `src/perturbfm/data/splits/split_spec.py`
-  - Implement a `Split` dataclass with:
-    - `train_idx`, `val_idx`, `test_idx` (1D integer arrays)
-    - `ood_axes` (dict with keys like `context`, `perturbation`, `dataset`)
-    - `seed`
-    - `frozen_hash`
-  - Provide:
-    - `compute_hash()` using your stable hashing utility (must depend on indices + ood_axes + seed + split spec metadata)
-    - `freeze()` that sets `frozen_hash` and prevents further mutation (enforce immutability defensively)
-    - `assert_frozen()` helpers
-- `src/perturbfm/data/splits/split_store.py`
-  - Implement `SplitStore` that:
-    - saves a frozen split to disk in a deterministic JSON format
-    - loads by hash
-    - refuses to overwrite existing hashes with different contents
-  - Decide and document where splits live. Default should be a tracked repo directory (use repo-root `splits/`) so they are versioned; do NOT put them only under `runs/` (gitignored) unless you also provide an explicit “export to tracked store” path.
-- `tests/test_splits.py`
-  - Add tests that verify:
-    - identical splits (different in-memory ordering) hash identically
-    - modifying any index changes the hash
-    - store refuses overwrites with mismatched content
-    - freeze prevents mutation (or at least detects mutation via hash mismatch)
-
-Split generators (minimal but real)
-- Add a module-level function (location is your choice, but keep within `src/perturbfm/data/splits/`) that can create:
-  - Context-OOD split: hold out one or more `context_id` values for test, with perturbations shared across train/test.
-  - Leave-one-context-out CV utility (can be a generator yielding splits).
-
-CLI integration
-- Add `perturbfm splits create` to generate and store splits from a dataset artifact (synthetic format from Prompt 2 is OK).
-- Add `perturbfm splits show <hash>` to print split summary.
-- Ensure the CLI prints the frozen split hash and that it’s easy to copy/paste.
-
-Verification
-- `pytest -q`
-- Smoke test on synthetic dataset:
-  - `perturbfm data make-synth --out /tmp/pfm_synth`
-  - `perturbfm splits create --data /tmp/pfm_synth --spec context_ood --holdout-context C1`
-```
-
----
-
-## Prompt 4 — Baseline suite first + run artifact contract
-
-```text
-You are an agentic coding assistant working inside the `PerturbFM` repo.
-
-Goal
-- Implement the baseline suite BEFORE any deep model, per `project_overview.md`.
-- Implement a minimal training/evaluation harness that produces the required run artifacts:
-  - resolved config
-  - split hash
-  - metrics.json
-  - predictions.npz
-  - calibration.json (even for baselines; can be simple)
-  - report.html can be a stub for now (or minimal HTML)
-
-Hard rules
-- No single-metric reporting: evaluation must produce the full metric panel outputs (even if some are placeholders for now, it must be explicit and tracked).
-- Every run must log the split hash in outputs.
-
-Scope
-- Baselines in `src/perturbfm/models/baselines/`:
-  - `mean_delta.py`: implement:
-    - global mean delta
-    - per-perturbation mean delta
-    - per-(perturbation, context) mean delta
-  - `ridge_delta.py`: implement ridge regression on control expression to predict delta (closed-form or iterative; avoid adding `sklearn` unless you ask first).
-- Training harness in `src/perturbfm/train/`:
-  - `trainer.py`: unify “fit + predict” for baselines (and later deep models)
-  - `losses.py`, `optim.py`: minimal placeholders with correct APIs (more will come later)
-- Evaluation harness in `src/perturbfm/eval/`:
-  - `evaluator.py`: loads dataset + split, runs model, saves artifacts under `runs/<run_id>/`
-  - `diagnostics.py`: include basic collapse diagnostics hooks (can be minimal)
-  - `report.py`: generate a minimal HTML report that links/summarizes metrics and calibration
-
-Prediction format contract
-- Save `predictions.npz` containing at least:
-  - `mean` (N, G)
-  - `var` (N, G)  (for baselines, estimate from training residuals or use a small epsilon, but be explicit)
-  - `idx` (N,) indices corresponding to dataset rows
-- Save `metrics.json` and `calibration.json` with structured keys (document in README if needed).
-
-Tests
-- Add tests that run the full baseline pipeline on the synthetic dataset:
-  - generate a split
-  - fit baseline
-  - predict on test
-  - ensure artifacts exist and have correct shapes
-
-CLI integration
-- Add `perturbfm train baseline ...` and `perturbfm eval ...` commands (or a combined `run` command).
-- The command must require a split hash (do not allow implicit split regeneration).
-- Fail fast if the split hash is missing or not found in the split store.
-- Use a deterministic `run_id` pattern like `<UTCYYYYMMDD-HHMMSS>_<splitHash7>_<modelName>` to keep runs sortable and traceable.
-
-Verification
-- `pytest -q`
-- End-to-end smoke:
-  - `perturbfm data make-synth --out /tmp/pfm_synth`
-  - `perturbfm splits create --data /tmp/pfm_synth --spec context_ood --holdout-context C1`
-  - `perturbfm train baseline --data /tmp/pfm_synth --split <HASH> --baseline per_perturbation_mean`
-```
-
----
-
-## Prompt 5 — Metrics panel + uncertainty calibration (numerical validation hooks)
-
-```text
-You are an agentic coding assistant working inside the `PerturbFM` repo.
-
-Goal
-- Implement the metric panel exactly as required by `project_overview.md`:
-  - scPerturBench metrics: MSE, PCC-delta, Energy distance, Wasserstein distance, KL divergence, Common-DEGs
-  - PerturBench metrics: RMSE, rank-based metrics (collapse-sensitive), prediction variance diagnostics
-- Implement uncertainty/calibration metrics:
-  - coverage vs nominal (50/80/90/95%)
-  - NLL
-  - risk–coverage curves
-  - uncertainty-based OOD detection AUROC
-
-Important: correctness over completeness
-- If any metric definition is ambiguous, implement it behind an interface and add TODO + a numerical validation harness that can be run against the official benchmark scripts.
-- Do NOT silently invent definitions without marking them.
-- If you need SciPy/POT or other heavy deps for distances, ask before adding them; prefer lightweight implementations.
-
-Scope
-- `src/perturbfm/eval/metrics_scperturbench.py`
-- `src/perturbfm/eval/metrics_perturbench.py`
-- `src/perturbfm/eval/uncertainty_metrics.py`
-- `src/perturbfm/eval/report.py` (extend to include metric tables + calibration plots placeholders)
-- `tests/test_metrics.py`, `tests/test_uncertainty.py`
-
-Metric API
-- Implement metrics as pure functions operating on numpy arrays / torch tensors (choose one; be consistent).
-- Provide an aggregation function that returns:
-  - per-perturbation
-  - per-context
-  - global weighted mean
-- Ensure evaluator always writes a single combined `metrics.json` that includes all required panels, not partial results.
-
-Numerical validation hooks
-- Add `src/perturbfm/eval/diagnostics.py` (or a `scripts/validate_metrics.py`) that can:
-  - load a small prediction artifact + ground truth
-  - compute metrics via PerturbFM code
-  - (optionally) call out to external benchmark reference scripts located under `third_party/` if present
-  - compare and print deltas / fail if mismatch beyond tolerance
-- This MUST NOT copy benchmark code into the library. It can only *execute* external scripts if the user has cloned them.
-
-Tests
-- Add small, deterministic unit tests for each metric where definitions are unambiguous (MSE, RMSE, PCC, NLL, coverage).
-- For ambiguous metrics (e.g., “Common-DEGs”, rank metrics), add interface-level tests + TODO markers, and ensure they are still wired into the report and metrics.json output.
-
-Verification
-- `pytest -q`
-- Run a baseline end-to-end and confirm:
-  - `metrics.json` includes the scPerturBench panel + PerturBench panel + uncertainty panel keys.
-  - `calibration.json` exists and includes nominal coverages.
-```
-
----
-
-## Optional Prompt 6 — PerturbFM v0 (probabilistic, no graph)
-
-```text
-You are an agentic coding assistant working inside the `PerturbFM` repo.
-
-Goal
-- Implement PerturbFM v0 as specified:
-  - cell encoder (MLP or small Transformer)
-  - learned perturbation embedding + context embedding
-  - fusion MLP
-  - probabilistic output in delta space: per-gene mean + variance
-  - train with Gaussian NLL
-- Enforce the additive decomposition:
-  prediction = basal_state + systematic_shift + perturbation_effect
-  with each component separately parameterized and ablatable.
-
-Scope
-- `src/perturbfm/models/perturbfm/` modules listed in `project_overview.md`:
-  - `cell_encoder.py`, `perturb_encoder.py`, `fusion.py`, `probabilistic_head.py`, `model.py`
-- `src/perturbfm/train/trainer.py` enhancements to support torch training loops.
-- `src/perturbfm/models/uncertainty/ensembles.py` initial implementation for K independent models and variance decomposition.
-
-Acceptance criteria
-- On synthetic data (where the true delta is learnable), v0 improves over at least one baseline on the Context-OOD split (define a simple synthetic regime that makes this meaningful).
-- Evaluator produces the full metrics + calibration outputs for v0.
-
-Verification
-- `pytest -q`
-- A short smoke training run completes on CPU in <1 minute on synthetic data.
-```
-
----
-
-## Optional Prompt 7 — PerturbFM v1 (graph-augmented + trust gating)
-
-```text
-You are an agentic coding assistant working inside the `PerturbFM` repo.
-
-Goal
-- Implement the graph-augmented PerturbFM v1:
-  - gene graph (external adjacency; subsetting to dataset genes)
-  - perturbation encoder with GNN message passing
-  - prior trust gating (learnable edge gates + residual bypass)
-  - required ablations: no-graph, graph-no-gating, graph-with-gating
-
-Scope
-- `src/perturbfm/models/perturbfm/gene_graph.py`
-- `src/perturbfm/models/perturbfm/perturb_encoder.py` (GNN)
-- Update training/eval to support ablations via config.
+1) Add a `scripts/check.sh` (or Makefile target) that runs:
+   - import smoke (`python -c "import perturbfm; print('ok')"`)
+   - CLI smoke (`perturbfm --help`)
+   - unit tests (see #2)
+2) Some environments crash running `pytest` due to plugin autoload / SSL issues (e.g., `ImportError: libssl.so.1.1` via third-party plugins).
+   - Add a safe default test command that sets `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`.
+   - Document this in `README.md` (short).
+3) Add “invariant assertions” tests:
+   - Split store refuses overwrite with mismatched content.
+   - Evaluator refuses to write `metrics.json` if required metric keys are missing (no partial panels).
 
 Constraints
-- Do not introduce heavyweight GNN deps without asking first (prefer implementing a small message passing layer in torch).
+- Do not add heavy dependencies.
+- Keep changes small and targeted.
 
 Verification
-- Unit tests for graph subsetting and gating behavior.
+- Run `scripts/check.sh` (or your new Makefile target).
+```
+
+---
+
+## Prompt 1 — Metrics: implement exact definitions + numerical parity harness
+
+```text
+You are an agentic coding assistant working inside the `PerturbFM` repo.
+
+Hard rules (do not violate)
+- No single-metric reporting: scPerturBench panel and PerturBench panel must be emitted together; missing metrics must fail the run, not silently write NaNs.
+- Licensing isolation: scPerturBench is external-only; do NOT vendor GPL code.
+
+Goal
+- Replace TODO/NaN metric placeholders with correct implementations OR (if definition is ambiguous) lock them behind a validation harness that compares to official reference scripts in `third_party/`.
+- Add a numerical parity harness that can be run locally when reference repos are present.
+
+Scope
+1) Implement scPerturBench metric panel in `src/perturbfm/eval/metrics_scperturbench.py`:
+   - MSE (already), PCC-delta (already)
+   - Energy distance, Wasserstein distance, KL divergence, Common-DEGs
+   - Aggregations: per perturbation, per context, global weighted mean
+2) Implement PerturBench metric panel in `src/perturbfm/eval/metrics_perturbench.py`:
+   - RMSE (already)
+   - Rank-based metrics (collapse-sensitive)
+   - Prediction variance diagnostics + collapse diagnostics
+3) Implement / extend uncertainty metrics in `src/perturbfm/eval/uncertainty_metrics.py`:
+   - coverage vs nominal (50/80/90/95%)
+   - NLL
+   - risk–coverage curves (already roughly present; verify definition)
+   - OOD AUROC (must accept explicit ood_labels)
+4) Add `scripts/validate_metrics.py` that:
+   - loads a dataset artifact + a predictions artifact
+   - computes metrics using PerturbFM code
+   - if `third_party/scPerturBench` or `third_party/PerturBench` exists, runs their official metric scripts (as a subprocess) on the same inputs
+   - compares results and fails if mismatch > tolerance
+   - IMPORTANT: this script may *execute* external code but must not copy/vend it into `src/perturbfm/`.
+5) Enforce “no partial panels”:
+   - evaluator must refuse to write `metrics.json` unless all required keys exist.
+   - If a metric is still unimplemented, it must raise a clear error telling the user to run `scripts/validate_metrics.py` after cloning the benchmark.
+
+Dependencies
+- Ask before adding SciPy/POT/scanpy/etc. Prefer numpy/torch implementations where feasible.
+
+Verification
+- Run the unit tests.
+- Create a synthetic dataset + run a baseline; confirm evaluator now fails loudly if any required metrics are missing.
+```
+
+---
+
+## Prompt 2 — Benchmark adapters: PerturBench real loader + official splits (no silent regen)
+
+```text
+You are an agentic coding assistant working inside the `PerturbFM` repo.
+
+Hard rules
+- OOD splits are immutable artifacts: import official splits where available; log and store split hashes; never silently regenerate.
+- Licensing isolation: scPerturBench remains external-only.
+
+Goal
+- Implement a real PerturBench adapter that loads canonical data and imports official splits when available.
+
+Scope
+1) `src/perturbfm/data/adapters/perturbench.py`
+   - Implement `PerturBenchAdapter.load(...)` to load real PerturBench datasets (AnnData / torch datasets).
+   - Map into `PerturbDataset` including `obs` fields and `var`.
+   - Support covariates (dose/time/etc.) via `obs["covariates"]` dict.
+2) Official splits
+   - If PerturBench provides official splits, implement `load_official_splits()` to import them.
+   - Convert them into `Split` artifacts and store them in the split store.
+   - Ensure the split hash is deterministic and logged.
+3) CLI
+   - Add `perturbfm data import-perturbench --dataset <name> --out <dir>` to write a `PerturbDataset` artifact.
+   - Add `perturbfm splits import-perturbench --dataset <name>` to import/store official splits.
+
+Dependencies
+- Ask before adding scanpy/anndata. If you do add them, make them optional extras (e.g. `pip install -e .[bench]`) and keep core install lightweight.
+
+Verification
+- Add adapter unit tests that run when the benchmark is not present (skip with a clear message).
+- Add a smoke path that works with a small local artifact.
+```
+
+---
+
+## Prompt 3 — Split specs expansion (LOCO CV, covariate transfer, combo generalization)
+
+```text
+You are an agentic coding assistant working inside the `PerturbFM` repo.
+
+Hard rules
+- Splits must be hash-locked and stored; do not allow implicit regeneration in training/eval.
+
+Goal
+- Expand split specs beyond Context-OOD so claims match benchmarks and stress tests.
+
+Scope
+1) Add split generators in `src/perturbfm/data/splits/`:
+   - leave-one-context-out CV (generator yielding splits)
+   - perturbation-OOD split (hold out perturbations)
+   - combo generalization split (hold out perturbation combinations)
+   - covariate transfer split (dose/time bucket held-out, if covariates exist)
+2) CLI updates
+   - Extend `perturbfm splits create` to support these specs and store the resulting frozen split.
+   - Ensure `perturbfm train ...` and `perturbfm eval ...` require split hash and fail if not found.
+3) Tests
+   - Add unit tests verifying each generator produces disjoint indices and consistent hashing.
+
+Verification
+- Unit tests.
+- Synthetic dataset smoke.
+```
+
+---
+
+## Prompt 4 — Uncertainty contract: ensembles + conformal + calibration outputs
+
+```text
+You are an agentic coding assistant working inside the `PerturbFM` repo.
+
+Goal
+- Turn “uncertainty” into a first-class deliverable, per `current_state.md` and `project_overview.md`.
+- Implement a concrete contract and ensure evaluator/report always emits it.
+
+Hard rules
+- Calibration must be evaluated; uncertainty must separate OOD from IID empirically (when labels/splits exist).
+
+Scope
+1) Implement:
+   - `src/perturbfm/models/uncertainty/calibration.py`: calibration utilities (ECE-like bins, coverage tables, reliability plots data)
+   - `src/perturbfm/models/uncertainty/conformal.py`: conformal intervals for per-gene regression (start with split conformal on residuals)
+   - Extend `src/perturbfm/models/uncertainty/ensembles.py` to support training K models and aggregating predictions.
+2) Evaluation outputs
+   - Ensure `calibration.json` always contains:
+     - coverage@{50,80,90,95}
+     - NLL
+     - risk–coverage curve points
+     - OOD AUROC (when `ood_labels` exist)
+3) CLI
+   - Add flags for ensemble size and optional conformal calibration.
+4) Tests
+   - Deterministic unit tests for conformal coverage on synthetic noise.
+
+Dependencies
+- Avoid heavy deps; implement with numpy/torch.
+
+Verification
+- Unit tests.
+```
+
+---
+
+## Prompt 5 — Implement PerturbFM v2 (CGIO): gene-set interventions + uncertain graph priors
+
+```text
+You are an agentic coding assistant working inside the `PerturbFM` repo.
+
+Read first
+- `project_overview.md` section 8.4 (v2 CGIO implementation-ready contract + ablations)
+
+Goal
+- Implement PerturbFM v2 (CGIO): context-conditioned low-rank operator + graph-propagated intervention signal + uncertainty-aware graph trust gating.
+
+Non-negotiables
+- Must accept perturbations as gene sets / masks (`obs["pert_genes"]`).
+- Must support multi-gene perturbations.
+- Must ship with an ablation-friendly config/CLI surface.
+
+Scope
+1) Data plumbing
+   - Extend the synthetic generator in `src/perturbfm/data/registry.py` to emit:
+     - `obs["pert_genes"]` (list-of-lists)
+     - a sparse random adjacency stored in metadata or written as a `graphs/*.npz` artifact for tests
+   - Add helpers to convert `pert_genes` to `pert_mask [B, G]` aligned to `var`.
+2) Model code
+   - Add `src/perturbfm/models/perturbfm/cgio.py` (or similar) implementing:
+     - graph propagation encoder (single + multi-graph)
+     - trust gating (fixed vs gated)
+     - contextual operator (global basis + contextual mixture weights)
+     - mean + variance outputs in delta space
+3) Training
+   - Extend `src/perturbfm/train/trainer.py` with `fit_predict_perturbfm_v2(...)`.
+   - Add CLI: `perturbfm train perturbfm-v2 ...` with flags to toggle:
+     - graph on/off
+     - gating on/off
+     - single vs multi-graph
+     - operator conditioning on/off
+4) Evaluation
+   - Ensure evaluator writes full metric panels + calibration for v2 runs.
+5) Tests
+   - Add a fast CPU smoke test showing v2 can learn the synthetic regime.
+   - Add a test that multi-gene perturbations do not crash and produce correct shapes.
+
+Dependencies
+- Do not add a GNN library; implement message passing directly in torch.
+
+Verification
+- Unit tests.
+- Quick end-to-end smoke with synthetic dataset + Context-OOD split.
+```
+
+---
+
+## Prompt 6 — Ablation runner + report upgrades (make claims reproducible)
+
+```text
+You are an agentic coding assistant working inside the `PerturbFM` repo.
+
+Goal
+- Make the “ablation grid” in `project_overview.md` executable and comparable across runs.
+
+Scope
+1) Config-driven runs
+   - Add a simple config loader (YAML) that resolves defaults + overrides and writes a resolved config to the run directory.
+   - Ensure every run logs: split hash, config hash, git SHA (if available), and dataset artifact hash.
+2) Deterministic run IDs
+   - Standardize run_id: `<UTCYYYYMMDD-HHMMSS>_<splitHash7>_<modelName>_<configHash7>`
+3) Report upgrades
+   - Extend `report.html` to include:
+     - metric tables for scPerturBench + PerturBench panels
+     - calibration tables (coverage, NLL)
+     - risk–coverage curve data (plot optional)
+     - graph reliance diagnostics (for v1/v2)
+4) Add `scripts/run_ablations.py`
+   - Given a dataset artifact + split hash + a list of configs, run the full ablation grid and write a summary table (CSV/JSON).
+   - Fail fast if any run produces partial metrics.
+
+Verification
+- Run a small ablation set on synthetic data and confirm summary outputs.
 ```
