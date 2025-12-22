@@ -1,0 +1,3 @@
+project: perturbfm
+seed: 1337
+device: cpu
