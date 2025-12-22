@@ -26,6 +26,7 @@ Core pieces (working):
   - `scripts/check.sh` (quick repo health)
   - `scripts/validate_metrics.py` (metric parity harness)
   - `scripts/run_ablations.py` (batch runs + summary)
+- `scripts/generate_diagrams.py` (regenerate README diagrams: SVG + PNG)
 
 Known gaps / “not done yet”:
 - Real benchmarks:
@@ -38,16 +39,9 @@ Known gaps / “not done yet”:
 
 ## Big picture (pipeline)
 
-```mermaid
-graph LR
-  A[Dataset artifact] --> B[SplitStore (hash-locked)]
-  B --> C[Train (baseline, v0, v1, v2)]
-  C --> D[predictions.npz (mean, var, idx)]
-  D --> E[metrics.json + calibration.json]
-  E --> F[report.html]
-```
+![PerturbFM pipeline diagram](docs/diagrams/pipeline.svg)
 
-If your markdown renderer doesn’t support Mermaid, read it as:
+If you can’t see the image above for some reason, read it as:
 
 `data artifact -> frozen split -> train -> predictions -> metrics+calibration -> report`
 
@@ -69,20 +63,9 @@ If your markdown renderer doesn’t support Mermaid, read it as:
 
 CGIO sketch:
 
-```mermaid
-graph TB
-  PG[pert_genes] --> PM[pert_mask (B x G)]
-  PM --> GP[Graph propagation (gated)]
-  C[context_id] --> CE[Context embedding]
-  CE --> GP
-  GP --> H[h (B x d)]
-  H --> OP[Contextual low-rank operator]
-  CE --> OP
-  OP --> MU[delta mean (B x G)]
-  OP --> VAR[delta variance (B x G)]
-```
+![PerturbFM v2 (CGIO) diagram](docs/diagrams/cgio.svg)
 
-If your markdown renderer doesn’t support Mermaid, read it as:
+If you can’t see the image above for some reason, read it as:
 
 `pert_genes -> pert_mask -> graph propagation (+ context) -> contextual operator -> delta mean/var`
 
