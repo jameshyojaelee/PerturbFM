@@ -34,6 +34,11 @@ def _add_data(subparsers: argparse._SubParsersAction) -> None:
     info.add_argument("path", help="Path to dataset artifact directory.")
     info.set_defaults(func=_cmd_data_info)
 
+    import_pb = data_sub.add_parser("import-perturbench", help="Import a PerturBench dataset into PerturbDataset artifact format.")
+    import_pb.add_argument("--dataset", required=True, help="PerturBench dataset name or path.")
+    import_pb.add_argument("--out", required=True, help="Output directory for the dataset artifact.")
+    import_pb.set_defaults(func=_cmd_data_import_perturbench)
+
 
 def _add_splits(subparsers: argparse._SubParsersAction) -> None:
     parser = subparsers.add_parser("splits", help="Split utilities.")
@@ -41,8 +46,17 @@ def _add_splits(subparsers: argparse._SubParsersAction) -> None:
 
     create = split_sub.add_parser("create", help="Create and store a split.")
     create.add_argument("--data", required=True, help="Path to dataset artifact directory.")
-    create.add_argument("--spec", required=True, choices=["context_ood"], help="Split spec name.")
-    create.add_argument("--holdout-context", action="append", required=True, dest="holdout_contexts")
+    create.add_argument(
+        "--spec",
+        required=True,
+        choices=["context_ood", "perturbation_ood", "combo_ood", "covariate_transfer"],
+        help="Split spec name.",
+    )
+    create.add_argument("--holdout-context", action="append", dest="holdout_contexts")
+    create.add_argument("--holdout-perturbation", action="append", dest="holdout_perts")
+    create.add_argument("--holdout-combo", action="append", dest="holdout_combos")
+    create.add_argument("--covariate-name", dest="cov_name")
+    create.add_argument("--holdout-covariate", action="append", dest="holdout_covs")
     create.add_argument("--seed", type=int, default=0)
     create.add_argument("--val-frac", type=float, default=0.1)
     create.set_defaults(func=_cmd_splits_create)
@@ -99,6 +113,20 @@ def _add_train(subparsers: argparse._SubParsersAction) -> None:
     v1.add_argument("--no-gating", action="store_true")
     v1.add_argument("--out", default=None, help="Optional output run directory.")
     v1.set_defaults(func=_cmd_train_perturbfm_v1)
+
+    v2 = train_sub.add_parser("perturbfm-v2", help="Train and evaluate PerturbFM v2 (CGIO).")
+    v2.add_argument("--data", required=True, help="Path to dataset artifact.")
+    v2.add_argument("--split", required=True, help="Split hash (must exist in split store).")
+    v2.add_argument("--hidden-dim", type=int, default=128)
+    v2.add_argument("--lr", type=float, default=1e-3)
+    v2.add_argument("--epochs", type=int, default=50)
+    v2.add_argument("--device", default="cpu")
+    v2.add_argument("--no-gating", action="store_true")
+    v2.add_argument("--no-contextual-operator", action="store_true")
+    v2.add_argument("--num-bases", type=int, default=4)
+    v2.add_argument("--adjacency", action="append", default=None, help="Path to .npz with key 'adjacency' (may be provided multiple times for multi-graph).")
+    v2.add_argument("--out", default=None, help="Optional output run directory.")
+    v2.set_defaults(func=_cmd_train_perturbfm_v2)
 
 
 def _add_eval(subparsers: argparse._SubParsersAction) -> None:
@@ -160,13 +188,45 @@ def _cmd_data_info(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_data_import_perturbench(args: argparse.Namespace) -> int:
+    raise NotImplementedError(
+        "PerturBench import requires the official benchmark locally. "
+        "Implement the loader in perturbfm.data.adapters.perturbench and retry."
+    )
+
+
 def _cmd_splits_create(args: argparse.Namespace) -> int:
     from perturbfm.data.canonical import PerturbDataset
-    from perturbfm.data.splits.split_spec import context_ood_split
+    from perturbfm.data.splits.split_spec import (
+        context_ood_split,
+        perturbation_ood_split,
+        combo_generalization_split,
+        covariate_transfer_split,
+    )
     from perturbfm.data.splits.split_store import SplitStore
 
     ds = PerturbDataset.load_artifact(args.data)
-    split = context_ood_split(ds.obs["context_id"], args.holdout_contexts, seed=args.seed, val_fraction=args.val_frac)
+    if args.spec == "context_ood":
+        if not args.holdout_contexts:
+            raise ValueError("holdout contexts required")
+        split = context_ood_split(ds.obs["context_id"], args.holdout_contexts, seed=args.seed, val_fraction=args.val_frac)
+    elif args.spec == "perturbation_ood":
+        if not args.holdout_perts:
+            raise ValueError("holdout perturbations required")
+        split = perturbation_ood_split(ds.obs["pert_id"], args.holdout_perts, seed=args.seed, val_fraction=args.val_frac)
+    elif args.spec == "combo_ood":
+        if not args.holdout_combos:
+            raise ValueError("holdout combos required")
+        split = combo_generalization_split(ds.obs["pert_id"], args.holdout_combos, seed=args.seed, val_fraction=args.val_frac)
+    elif args.spec == "covariate_transfer":
+        if not args.cov_name or not args.holdout_covs:
+            raise ValueError("covariate name and holdout covariates required")
+        covs = ds.obs.get("covariates", {}).get(args.cov_name)
+        if covs is None:
+            raise ValueError(f"covariate {args.cov_name} not found in dataset.obs['covariates']")
+        split = covariate_transfer_split(covs, args.holdout_covs, seed=args.seed, val_fraction=args.val_frac)
+    else:
+        raise ValueError(f"Unknown spec {args.spec}")
     split.freeze()
     store = SplitStore.default()
     store.save(split)
@@ -249,6 +309,34 @@ def _cmd_train_perturbfm_v1(args: argparse.Namespace) -> int:
         device=args.device,
         use_graph=not args.no_graph,
         use_gating=not args.no_gating,
+    )
+    print(f"run_dir={run_dir}")
+    return 0
+
+
+def _cmd_train_perturbfm_v2(args: argparse.Namespace) -> int:
+    import numpy as np
+    from perturbfm.eval.evaluator import run_perturbfm_v2
+
+    adjs = None
+    if args.adjacency:
+        adjs = []
+        for path in args.adjacency:
+            with np.load(path) as npz:
+                adjs.append(npz["adjacency"])
+    run_dir = run_perturbfm_v2(
+        data_path=args.data,
+        split_hash=args.split,
+        adjacency=adjs,
+        pert_gene_masks=None,
+        out_dir=args.out,
+        hidden_dim=args.hidden_dim,
+        lr=args.lr,
+        epochs=args.epochs,
+        device=args.device,
+        use_gating=not args.no_gating,
+        contextual_operator=not args.no_contextual_operator,
+        num_bases=args.num_bases,
     )
     print(f"run_dir={run_dir}")
     return 0

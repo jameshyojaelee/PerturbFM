@@ -18,6 +18,7 @@ from perturbfm.train.trainer import (
     fit_predict_baseline,
     fit_predict_perturbfm_v0,
     fit_predict_perturbfm_v1,
+    fit_predict_perturbfm_v2,
     get_baseline,
 )
 from perturbfm.utils.hashing import stable_json_dumps
@@ -170,6 +171,51 @@ def run_perturbfm_v1(
     _write_json(run_dir / "calibration.json", metrics_unc)
 
     config = {"data_path": data_path, "split_hash": split_hash, "model": {"name": "perturbfm_v1", **kwargs}}
+    _write_json(run_dir / "config.json", config)
+    (run_dir / "split_hash.txt").write_text(split_hash + "\n", encoding="utf-8")
+
+    report_html = render_report(metrics)
+    (run_dir / "report.html").write_text(report_html, encoding="utf-8")
+    return run_dir
+
+
+def run_perturbfm_v2(
+    data_path: str,
+    split_hash: str,
+    adjacency,
+    pert_gene_masks=None,
+    out_dir: Optional[str] = None,
+    **kwargs,
+) -> Path:
+    ds = PerturbDataset.load_artifact(data_path)
+    store = SplitStore.default()
+    split = store.load(split_hash)
+
+    preds = fit_predict_perturbfm_v2(
+        ds,
+        split,
+        adjacencies=adjacency,
+        **kwargs,
+    )
+    run_id = _default_run_id(split_hash, "perturbfm_v2")
+    run_dir = Path(out_dir) if out_dir else Path("runs") / run_id
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    np.savez_compressed(run_dir / "predictions.npz", mean=preds["mean"], var=preds["var"], idx=preds["idx"])
+
+    subset = ds.select(preds["idx"])
+    y_true = subset.delta
+    metrics_sc = compute_scperturbench_metrics(y_true, preds["mean"], subset.obs)
+    metrics_pb = compute_perturbench_metrics(y_true, preds["mean"], subset.obs)
+    ood_labels = subset.obs.get("is_ood") if isinstance(subset.obs, dict) else None
+    metrics_unc = compute_uncertainty_metrics(y_true, preds["mean"], preds["var"], ood_labels=ood_labels)
+
+    metrics = {"scperturbench": metrics_sc, "perturbench": metrics_pb, "uncertainty": metrics_unc}
+    _require_metrics_complete(metrics)
+    _write_json(run_dir / "metrics.json", metrics)
+    _write_json(run_dir / "calibration.json", metrics_unc)
+
+    config = {"data_path": data_path, "split_hash": split_hash, "model": {"name": "perturbfm_v2", **kwargs}}
     _write_json(run_dir / "config.json", config)
     (run_dir / "split_hash.txt").write_text(split_hash + "\n", encoding="utf-8")
 

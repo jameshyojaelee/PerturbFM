@@ -3,6 +3,7 @@ import pytest
 
 from perturbfm.data.splits.split_spec import Split
 from perturbfm.data.splits.split_store import SplitStore
+from perturbfm.data.splits import split_spec
 
 
 def test_split_hash_order_invariant():
@@ -31,3 +32,16 @@ def test_freeze_prevents_mutation():
     split = Split(train_idx=np.array([0, 1]), val_idx=np.array([2]), test_idx=np.array([3]), ood_axes={}, seed=0).freeze()
     with pytest.raises(ValueError):
         split.train_idx[0] = 99
+
+
+def test_perturbation_ood_split_disjoint():
+    perts = ["A", "B", "C", "A", "B"]
+    split = split_spec.perturbation_ood_split(perts, holdout_perts=["C"])
+    assert set(split.test_idx.tolist()) == {2}
+    assert set(split.train_idx).isdisjoint(split.test_idx)
+
+
+def test_covariate_transfer_split_disjoint():
+    covs = ["low", "high", "low", "mid"]
+    split = split_spec.covariate_transfer_split(covs, holdout_values=["high"])
+    assert set(split.test_idx.tolist()) == {1}
