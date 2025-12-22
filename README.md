@@ -39,11 +39,11 @@ Known gaps / “not done yet”:
 ## Big picture (pipeline)
 
 ```mermaid
-flowchart LR
-  A[Dataset artifact<br/>data.npz + meta.json] --> B[SplitStore<br/>splits/*.json (hash-locked)]
-  B --> C[Train (baseline / v0 / v1 / v2)]
-  C --> D[predictions.npz<br/>mean, var, idx]
-  D --> E[Evaluator<br/>metrics.json + calibration.json]
+graph LR
+  A[Dataset artifact] --> B[SplitStore (hash-locked)]
+  B --> C[Train (baseline, v0, v1, v2)]
+  C --> D[predictions.npz (mean, var, idx)]
+  D --> E[metrics.json + calibration.json]
   E --> F[report.html]
 ```
 
@@ -70,9 +70,9 @@ If your markdown renderer doesn’t support Mermaid, read it as:
 CGIO sketch:
 
 ```mermaid
-flowchart TB
-  PG[obs.pert_genes] --> PM[pert_mask (B x G)]
-  PM --> GP[Graph propagation<br/>(single/multi-graph, gated)]
+graph TB
+  PG[pert_genes] --> PM[pert_mask (B x G)]
+  PM --> GP[Graph propagation (gated)]
   C[context_id] --> CE[Context embedding]
   CE --> GP
   GP --> H[h (B x d)]
@@ -81,6 +81,10 @@ flowchart TB
   OP --> MU[delta mean (B x G)]
   OP --> VAR[delta variance (B x G)]
 ```
+
+If your markdown renderer doesn’t support Mermaid, read it as:
+
+`pert_genes -> pert_mask -> graph propagation (+ context) -> contextual operator -> delta mean/var`
 
 ## Repository layout
 
