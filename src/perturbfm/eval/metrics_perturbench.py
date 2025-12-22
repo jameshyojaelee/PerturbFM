@@ -12,11 +12,30 @@ def _rmse(y_true: np.ndarray, y_pred: np.ndarray) -> float:
 
 
 def _rank_metrics(_y_true: np.ndarray, _y_pred: np.ndarray) -> float:
-    return float("nan")
+    # Spearman rank correlation averaged over samples.
+    y_true = _y_true
+    y_pred = _y_pred
+    if y_true.shape[0] == 0:
+        return float("nan")
+    corrs = []
+    for i in range(y_true.shape[0]):
+        t = y_true[i]
+        p = y_pred[i]
+        # rank transform
+        tr = np.argsort(np.argsort(t))
+        pr = np.argsort(np.argsort(p))
+        cov = np.cov(tr, pr, bias=True)[0, 1]
+        std = tr.std() * pr.std()
+        if std == 0:
+            continue
+        corrs.append(cov / std)
+    return float(np.mean(corrs)) if corrs else float("nan")
 
 
 def _variance_diagnostics(_y_true: np.ndarray, _y_pred: np.ndarray) -> float:
-    return float("nan")
+    mse = (( _y_true - _y_pred) ** 2).mean()
+    pred_var = _y_pred.var()
+    return float(pred_var - mse)
 
 
 def _aggregate(

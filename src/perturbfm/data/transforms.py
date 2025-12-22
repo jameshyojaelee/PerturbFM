@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Dict, Sequence, Tuple
+from typing import Dict, Sequence, Tuple, List
 
 import numpy as np
 
@@ -27,3 +27,13 @@ def match_controls_by_context(obs: Dict[str, Sequence], X_control: np.ndarray) -
         idx = np.where(contexts == ctx)[0]
         matched[idx] = X_control[idx].mean(axis=0, keepdims=True)
     return matched
+
+
+def pert_genes_to_mask(pert_genes: Sequence[List[str]], var: Sequence[str]) -> np.ndarray:
+    gene_to_idx = {g: i for i, g in enumerate(var)}
+    mask = np.zeros((len(pert_genes), len(var)), dtype=np.float32)
+    for i, genes in enumerate(pert_genes):
+        for g in genes:
+            if g in gene_to_idx:
+                mask[i, gene_to_idx[g]] = 1.0
+    return mask

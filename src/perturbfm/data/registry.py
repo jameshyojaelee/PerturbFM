@@ -45,9 +45,16 @@ def make_synthetic_dataset(
     base_context = rng.normal(0.0, 1.0, size=(n_contexts, n_genes))
     pert_effect = rng.normal(0.0, 0.5, size=(n_perts, n_genes))
 
-    obs = {k: [] for k in ("pert_id", "context_id", "batch_id", "is_control")}
+    obs = {k: [] for k in ("pert_id", "context_id", "batch_id", "is_control", "pert_genes")}
     X_control = np.zeros((n_obs, n_genes), dtype=np.float32)
     X_pert = np.zeros((n_obs, n_genes), dtype=np.float32)
+
+    # Random sparse undirected adjacency for tests (normalized)
+    adj = rng.random((n_genes, n_genes))
+    adj = np.triu(adj < 0.05, 1).astype(np.float32)
+    adj = adj + adj.T
+    deg = adj.sum(axis=1, keepdims=True) + 1e-6
+    adj = adj / deg
 
     for i in range(n_obs):
         ctx_idx = rng.integers(0, n_contexts)
@@ -65,10 +72,17 @@ def make_synthetic_dataset(
         obs["context_id"].append(contexts[ctx_idx])
         obs["batch_id"].append("B0")
         obs["is_control"].append(bool(is_control))
+        if is_control:
+            obs["pert_genes"].append([])
+        else:
+            # pick 1-3 genes for the perturbation
+            gcount = int(rng.integers(1, min(3, n_genes) + 1))
+            genes = rng.choice(n_genes, size=gcount, replace=False)
+            obs["pert_genes"].append([f"G{g}" for g in genes])
 
     delta = X_pert - X_control
     var = [f"G{i}" for i in range(n_genes)]
-    metadata = {"name": "synthetic", "n_contexts": n_contexts, "n_perts": n_perts}
+    metadata = {"name": "synthetic", "n_contexts": n_contexts, "n_perts": n_perts, "adjacency": adj.tolist()}
     ds = PerturbDataset(X_control=X_control, X_pert=X_pert, delta=delta, obs=obs, var=var, metadata=metadata)
     ds.validate()
     return ds

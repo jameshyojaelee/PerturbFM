@@ -32,6 +32,29 @@ def _write_json(path: Path, payload: Dict[str, object]) -> None:
     path.write_text(stable_json_dumps(payload), encoding="utf-8")
 
 
+def _require_metrics_complete(metrics: Dict[str, object]) -> None:
+    required_panels = {
+        "scperturbench": ["MSE", "PCC_delta", "Energy", "Wasserstein", "KL", "Common_DEGs"],
+        "perturbench": ["RMSE", "RankMetrics", "VarianceDiagnostics"],
+        "uncertainty": ["coverage", "nll", "risk_coverage", "ood_auroc"],
+    }
+    for panel, keys in required_panels.items():
+        if panel not in metrics:
+            raise ValueError(f"Missing required metrics panel: {panel}")
+        panel_obj = metrics[panel]
+        if not isinstance(panel_obj, dict):
+            raise ValueError(f"Metrics panel {panel} must be a dict.")
+        if panel == "uncertainty":
+            for k in keys:
+                if k not in panel_obj:
+                    raise ValueError(f"Missing required uncertainty metric: {k}")
+        else:
+            global_section = panel_obj.get("global", {})
+            for k in keys:
+                if k not in global_section:
+                    raise ValueError(f"Missing required metric {k} in panel {panel}")
+
+
 def run_baseline(
     data_path: str,
     split_hash: str,
@@ -60,6 +83,7 @@ def run_baseline(
     metrics_unc = compute_uncertainty_metrics(y_true, preds["mean"], preds["var"], ood_labels=ood_labels)
 
     metrics = {"scperturbench": metrics_sc, "perturbench": metrics_pb, "uncertainty": metrics_unc}
+    _require_metrics_complete(metrics)
     _write_json(run_dir / "metrics.json", metrics)
     _write_json(run_dir / "calibration.json", metrics_unc)
 
@@ -102,6 +126,7 @@ def run_perturbfm_v0(
     metrics_unc = compute_uncertainty_metrics(y_true, preds["mean"], preds["var"], ood_labels=ood_labels)
 
     metrics = {"scperturbench": metrics_sc, "perturbench": metrics_pb, "uncertainty": metrics_unc}
+    _require_metrics_complete(metrics)
     _write_json(run_dir / "metrics.json", metrics)
     _write_json(run_dir / "calibration.json", metrics_unc)
 
@@ -176,6 +201,7 @@ def evaluate_predictions(
     metrics_unc = compute_uncertainty_metrics(y_true, mean, var, ood_labels=ood_labels)
 
     metrics = {"scperturbench": metrics_sc, "perturbench": metrics_pb, "uncertainty": metrics_unc}
+    _require_metrics_complete(metrics)
     out_path = Path(out_dir)
     out_path.mkdir(parents=True, exist_ok=True)
     _write_json(out_path / "metrics.json", metrics)

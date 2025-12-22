@@ -20,19 +20,49 @@ def _pcc_delta(y_true: np.ndarray, y_pred: np.ndarray) -> float:
 
 
 def _energy_distance(_y_true: np.ndarray, _y_pred: np.ndarray) -> float:
-    return float("nan")
+    x = _y_true.reshape(_y_true.shape[0], -1)
+    y = _y_pred.reshape(_y_pred.shape[0], -1)
+    nx, ny = x.shape[0], y.shape[0]
+    # pairwise distances
+    dx = np.sqrt(((x[:, None, :] - x[None, :, :]) ** 2).sum(axis=2))
+    dy = np.sqrt(((y[:, None, :] - y[None, :, :]) ** 2).sum(axis=2))
+    dxy = np.sqrt(((x[:, None, :] - y[None, :, :]) ** 2).sum(axis=2))
+    term = 2.0 * dxy.mean() - dx.mean() - dy.mean()
+    return float(term)
 
 
 def _wasserstein_distance(_y_true: np.ndarray, _y_pred: np.ndarray) -> float:
-    return float("nan")
+    # Approximate 1D Wasserstein per gene via quantile matching, then average.
+    x = _y_true
+    y = _y_pred
+    if x.shape[0] == 0 or y.shape[0] == 0:
+        return float("nan")
+    qs = np.linspace(0, 100, num=51)
+    dists = []
+    for g in range(x.shape[1]):
+        qx = np.percentile(x[:, g], qs)
+        qy = np.percentile(y[:, g], qs)
+        dists.append(np.mean(np.abs(qx - qy)))
+    return float(np.mean(dists))
 
 
 def _kl_divergence(_y_true: np.ndarray, _y_pred: np.ndarray) -> float:
-    return float("nan")
+    # Diagonal Gaussian approximation
+    mu_p = _y_true.mean(axis=0)
+    mu_q = _y_pred.mean(axis=0)
+    var_p = _y_true.var(axis=0) + 1e-8
+    var_q = _y_pred.var(axis=0) + 1e-8
+    kl = 0.5 * np.sum(np.log(var_q / var_p) + (var_p + (mu_p - mu_q) ** 2) / var_q - 1)
+    return float(kl / _y_true.shape[1])
 
 
 def _common_degs(_y_true: np.ndarray, _y_pred: np.ndarray) -> float:
-    return float("nan")
+    # Placeholder: rank genes by absolute delta; compute overlap@100.
+    k = min(100, _y_true.shape[1])
+    true_rank = np.argsort(-np.abs(_y_true).mean(axis=0))[:k]
+    pred_rank = np.argsort(-np.abs(_y_pred).mean(axis=0))[:k]
+    overlap = len(set(true_rank.tolist()) & set(pred_rank.tolist()))
+    return float(overlap / k) if k > 0 else float("nan")
 
 
 def _aggregate(

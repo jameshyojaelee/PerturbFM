@@ -87,6 +87,12 @@ If `pytest` crashes in your environment due to SSL/plugin loading issues (e.g., 
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q
 ```
 
+Quick health check:
+
+```bash
+scripts/check.sh
+```
+
 ## Roadmap (next)
 
 1) Validate metric implementations numerically against official benchmark scripts (executed from `third_party/`, without vendoring GPL code).
