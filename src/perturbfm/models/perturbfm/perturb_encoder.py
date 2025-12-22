@@ -43,6 +43,8 @@ class GraphPerturbationEncoder(nn.Module):
         adj = self.adjacency
         if self.use_gating:
             adj = adj * torch.sigmoid(self.edge_gates)
+            if torch.max(torch.abs(adj)) < 1e-6:
+                return residual
         for _ in range(self.num_layers):
             h = torch.relu(torch.einsum("ij,bjh->bih", adj, h))
             h = self.lin_msg(h)

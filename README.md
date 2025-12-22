@@ -1,24 +1,86 @@
 # PerturbFM
 
-Universal perturbation foundation model with graph priors and calibrated uncertainty.
+Perturbation response prediction with **immutable OOD splits**, **full metric panels**, and **calibrated uncertainty**.
 
-This repo enforces immutable OOD splits, full metric panels, and explicit uncertainty evaluation. The architecture plan lives in `project_overview.md`.
+This repo is deliberately opinionated: it tries to make “fake wins” hard by baking evaluation rigor into the tooling.
 
-## Current status
+- Architecture + hard rules: `project_overview.md`
+- Literature + competitive positioning + v2 direction: `current_state.md`
 
-Implemented:
-- Canonical `PerturbDataset` abstraction + artifact I/O.
-- Split system with hash‑locked, stored splits.
-- Baseline suite + minimal evaluator that writes run artifacts.
-- Metrics/uncertainty panels (ambiguous metrics marked TODO).
-- PerturbFM v0 (probabilistic) and v1 (graph‑augmented) scaffolds.
-- CLI for `data`, `splits`, `train`, `eval`.
+## What’s in the repo right now
 
-Known gaps / TODOs:
-- Benchmark adapters: `PerturBenchAdapter` currently loads `PerturbDataset` artifacts only (real AnnData/PerturBench loaders + official splits are TODO). `scPerturBenchAdapter` is intentionally a stub (GPL isolation).
-- Metrics: scPerturBench (Energy/Wasserstein/KL/Common‑DEGs) and PerturBench (rank metrics / collapse diagnostics) are wired but return `NaN` until validated against reference scripts.
-- Uncertainty: deep ensemble helper exists, but conformal/calibration modules are not implemented yet.
-- Training control: no early stopping on OOD validation metrics; HTML report is minimal.
+Core pieces (working):
+- Canonical dataset object: `PerturbDataset` (+ artifact I/O).
+- Split system: frozen, hash‑locked splits stored under `splits/`.
+- CLI: `perturbfm data`, `perturbfm splits`, `perturbfm train`, `perturbfm eval`.
+- Models:
+  - Baselines (mean delta, ridge delta)
+  - PerturbFM v0 (probabilistic)
+  - PerturbFM v1 (graph + gating)
+  - PerturbFM v2 (CGIO: graph‑propagated intervention + contextual operator)
+- Evaluation:
+  - scPerturBench-style metric panel (implemented)
+  - PerturBench-style metric panel (implemented)
+  - Uncertainty outputs + basic conformal intervals (optional)
+- Scripts:
+  - `scripts/check.sh` (quick repo health)
+  - `scripts/validate_metrics.py` (metric parity harness)
+  - `scripts/run_ablations.py` (batch runs + summary)
+
+Known gaps / “not done yet”:
+- Real benchmarks:
+  - `PerturBenchAdapter` supports artifacts and `.h5ad` (requires `anndata`), but importing *official* PerturBench splits depends on you having the benchmark repo/files locally.
+  - `scPerturBenchAdapter` is intentionally external-only (GPL isolation).
+- Metric definitions still need **numerical parity validation** against official reference scripts in `third_party/` (use `scripts/validate_metrics.py`).
+- Training control/reporting:
+  - early stopping on an OOD validation metric is still TODO
+  - `report.html` is intentionally simple (tables + raw JSON)
+
+## Big picture (pipeline)
+
+```mermaid
+flowchart LR
+  A[Dataset artifact<br/>data.npz + meta.json] --> B[SplitStore<br/>splits/*.json (hash-locked)]
+  B --> C[Train (baseline / v0 / v1 / v2)]
+  C --> D[predictions.npz<br/>mean, var, idx]
+  D --> E[Evaluator<br/>metrics.json + calibration.json]
+  E --> F[report.html]
+```
+
+If your markdown renderer doesn’t support Mermaid, read it as:
+
+`data artifact -> frozen split -> train -> predictions -> metrics+calibration -> report`
+
+## Models (at a glance)
+
+- **Baselines**
+  - `global_mean`, `per_perturbation_mean`, `per_perturbation_context_mean`
+  - `ridge` (predict delta from control expression)
+- **PerturbFM v0**
+  - simple probabilistic model in delta space (mean + per-gene variance)
+  - inputs: control expression + learned perturbation/context embeddings
+- **PerturbFM v1**
+  - graph-augmented perturbation encoder + trust gating
+  - intended for multi-gene perturbations when you have a gene graph
+- **PerturbFM v2 (CGIO)**
+  - intervention is a **gene set** (`obs["pert_genes"]`)
+  - propagate intervention over one or more graphs (with gating)
+  - predict delta via a **context-conditioned low-rank operator**
+
+CGIO sketch:
+
+```mermaid
+flowchart TB
+  PG[obs.pert_genes] --> PM[pert_mask (B x G)]
+  PM --> GP[Graph propagation<br/>(single/multi-graph, gated)]
+  C[context_id] --> CE[Context embedding]
+  CE --> GP
+  GP --> H[h (B x d)]
+  H --> OP[Contextual low-rank operator]
+  CE --> OP
+  OP --> MU[delta mean (B x G)]
+  OP --> VAR[delta variance (B x G)]
+```
 
 ## Repository layout
 
@@ -45,9 +107,20 @@ Each dataset artifact directory contains:
   - `var` (gene identifiers list)
   - `metadata` (freeform dict)
 
+Common `obs` fields you’ll see in practice:
+- `pert_id`: `"control"` or a perturbation ID (single or combo string)
+- `context_id`: cell type / cell line / condition grouping
+- `batch_id`: batch identifier
+- `is_control`: boolean
+- `pert_genes`: (v2 CGIO) list of perturbed gene IDs per row (empty list for controls)
+- `covariates`: optional dict of arrays (dose/time/etc.)
+
 ## Split system
 
-Splits are immutable and hash‑locked. They are stored in `splits/` as JSON and referenced by hash in all runs.
+Splits are immutable and hash‑locked:
+- Stored as JSON files under `splits/` (filename is the split hash).
+- Every run records the split hash (`split_hash.txt` + `config.json`).
+- Training/eval should never “silently regenerate” a split.
 
 You can override the split store location with `PERTURBFM_SPLIT_DIR` (used in tests).
 
@@ -61,18 +134,76 @@ Each run writes:
 - `calibration.json`
 - `report.html`
 
-## CLI quickstart
+### Metrics and calibration outputs
+
+`metrics.json` is a single combined object that always includes:
+
+- `scperturbench`
+  - `global`: metric name → value
+  - `per_perturbation`: perturbation → metrics
+  - `per_context`: context → metrics
+- `perturbench`
+  - same structure as above
+- `uncertainty`
+  - `coverage`: `{0.5, 0.8, 0.9, 0.95}` → empirical coverage
+  - `nll`: Gaussian NLL in delta space
+  - `risk_coverage`: arrays of risk vs coverage points
+  - `ood_auroc`: AUROC if `ood_labels` are provided
+  - `conformal`: optional conformal interval stats (when enabled)
+
+`calibration.json` currently mirrors the `uncertainty` panel (so you can load it without parsing the full `metrics.json`).
+
+### Run IDs and hashes
+
+Runs are stored under `runs/<run_id>/` (gitignored). The run id is designed to be sortable and traceable:
+
+- `<UTCYYYYMMDD-HHMMSS>_<splitHash7>_<modelName>_<configHash>`
+
+`config.json` also stores:
+- `data_hash` (hash of the dataset artifact metadata)
+- `split_hash`
+- `config_hash`
+
+## CLI quickstart (synthetic)
+
+This is the fastest way to sanity-check the full pipeline.
 
 ```bash
+python -m pip install -e .
+
 perturbfm data make-synth --out /tmp/pfm_synth
 perturbfm splits create --data /tmp/pfm_synth --spec context_ood --holdout-context C0
 perturbfm train baseline --data /tmp/pfm_synth --split <HASH> --baseline global_mean
+```
+
+Train the v2 CGIO model on the same synthetic artifact:
+
+```bash
+perturbfm train perturbfm-v2 --data /tmp/pfm_synth --split <HASH> --epochs 5
 ```
 
 Evaluate existing predictions:
 
 ```bash
 perturbfm eval predictions --data /tmp/pfm_synth --split <HASH> --preds /path/to/predictions.npz --out /tmp/pfm_eval
+```
+
+## Ablations (batch runs)
+
+Create a small JSON list of configs (example):
+
+```json
+[
+  {"kind": "baseline", "name": "global_mean"},
+  {"kind": "v0", "epochs": 2, "hidden_dim": 16},
+  {"kind": "v2", "epochs": 2, "hidden_dim": 16, "use_gating": true, "contextual_operator": true}
+]
+```
+
+Then run:
+
+```bash
+python scripts/run_ablations.py --data /tmp/pfm_synth --split <HASH> --configs configs.json --out runs_summary.json
 ```
 
 ## Testing
@@ -93,8 +224,29 @@ Quick health check:
 scripts/check.sh
 ```
 
+## Metric validation (important)
+
+Even though the metric functions are implemented, you should validate them against official reference scripts before making claims:
+
+```bash
+python scripts/validate_metrics.py --data /tmp/pfm_synth --preds /path/to/predictions.npz
+```
+
+If you have the official benchmark repos cloned under `third_party/`, wire their reference scripts into `scripts/validate_metrics.py` and compare outputs numerically.
+
+## External benchmarks (GPL isolation)
+
+This repo does **not** vendor benchmark code. The intent is:
+
+- Keep PerturbFM core permissively licensed.
+- Treat scPerturBench (GPL) as an *external evaluation harness* only.
+
+Typical workflow:
+- Clone benchmarks into `third_party/` (gitignored).
+- Run their scripts from `scripts/validate_metrics.py` / shell scripts without copying code into `src/perturbfm/`.
+
 ## Roadmap (next)
 
 1) Validate metric implementations numerically against official benchmark scripts (executed from `third_party/`, without vendoring GPL code).
 2) Implement real benchmark adapters + official split import/export (PerturBench first).
-3) Implement a novelty candidate model (v2): context‑conditional graph intervention operators with uncertainty‑aware graph trust gating + calibration on OOD splits.
+3) Tighten training control/reporting (OOD-metric early stopping, richer reports) and run the full v0/v1/v2 ablation grid on strict OOD splits.

@@ -35,6 +35,24 @@ def _write_json(path: Path, payload: Dict[str, object]) -> None:
     path.write_text(stable_json_dumps(payload), encoding="utf-8")
 
 
+def _dataset_hash(data_path: Path) -> str:
+    meta = (data_path / "meta.json").read_text(encoding="utf-8")
+    return sha256_json(meta)[:8]
+
+
+def _ensemble_predictions(run_fn, ensemble_size: int):
+    preds_list = []
+    for _ in range(ensemble_size):
+        preds_list.append(run_fn())
+    mean_stack = np.stack([p["mean"] for p in preds_list], axis=0)
+    var_stack = np.stack([p["var"] for p in preds_list], axis=0)
+    mean = mean_stack.mean(axis=0)
+    aleatoric = var_stack.mean(axis=0)
+    epistemic = mean_stack.var(axis=0)
+    total_var = aleatoric + epistemic
+    return {"mean": mean, "var": total_var, "idx": preds_list[0]["idx"]}
+
+
 def _require_metrics_complete(metrics: Dict[str, object]) -> None:
     required_panels = {
         "scperturbench": ["MSE", "PCC_delta", "Energy", "Wasserstein", "KL", "Common_DEGs"],

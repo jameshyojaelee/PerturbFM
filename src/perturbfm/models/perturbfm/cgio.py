@@ -25,6 +25,9 @@ class GraphPropagator(nn.Module):
             a = adj
             if self.use_gating:
                 a = a * torch.sigmoid(self.gates[i])
+                if torch.max(torch.abs(a)) < 1e-6:
+                    h_list.append(residual)
+                    continue
             h = torch.einsum("gh,bhd->bhd", a, h0)
             h = torch.relu(self.post(h))
             h = h.mean(dim=1)  # pool genes -> [B, d]
