@@ -16,6 +16,9 @@ dist/
 runs/
 third_party/
 
+progress/
+prompts/
+
 project_overview.md
 current_state.md
 references.md
