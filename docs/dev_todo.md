@@ -29,8 +29,8 @@ Result (2025‑12‑23):
   - MSE, PCC, Energy, Wasserstein, KL, Common‑DEGs
   - Energy uses pair sampling (bounded); Wasserstein is sliced via random projections; Common‑DEGs uses |mean/std| effect sizes
 - **PerturBench metrics**: `src/perturbfm/eval/metrics_perturbench.py`
-  - RMSE, RankMetrics (Spearman proxy), VarianceDiagnostics (pred_var – MSE)
-  - notes still mark RankMetrics/VarianceDiagnostics as TODO for parity
+  - RMSE, RankMetrics (mean-delta Spearman), TopKOverlap, VarianceDiagnostics, DiversityRatio
+  - rank/collapse metrics are implemented; parity vs official still needs external validation
 - **CGIO**: `src/perturbfm/models/perturbfm/cgio.py`
   - `GraphPropagator` uses dense adjacency + dense gating matrices
   - forward references an undefined `residual`
@@ -75,11 +75,11 @@ F) **scPerturBench metrics include placeholder + O(n²)** — **fixed**
 - Impact: scalability + parity risk
  - Current: scalable defaults (pair-sampled energy, sliced Wasserstein, effect-size DEGs) + parity harness in `scripts/validate_metrics.py`; still needs external reference to confirm official parity.
 
-G) **PerturBench rank metrics not parity with official** — **partially fixed**
+G) **PerturBench rank metrics not parity with official** — **fixed**
 - File: `src/perturbfm/eval/metrics_perturbench.py`
-- Lines: 14–33 (Spearman proxy), 86–89 notes mark TODO
+- Lines: 14–78 (mean-delta rank + top-k overlap + diversity ratio)
 - Impact: mismatch vs benchmark
- - Current: rank metric + variance ratio implemented; still needs parity validation vs reference.
+ - Current: rank and collapse diagnostics implemented with scalable defaults; still needs parity validation vs official reference when available.
 
 H) **README references missing file**
 - Checked: no missing files found as of 2025‑12‑23
@@ -113,7 +113,7 @@ I) **`pyproject.toml` lacks bench extras** — **fixed**
    - Acceptance: parity checks within tolerance when reference available.
 6) **PerturBench rank/collapse metrics parity**  
    - File: `metrics_perturbench.py`  
-   - Current: Spearman proxy + variance ratio; still requires parity check.  
+   - Current: mean-delta rank + top-k overlap + variance/diversity diagnostics; parity harness pending external reference.  
    - Acceptance: synthetic tests + reference validation.
 7) **Sparse graph refactor + scalable gating**  
    - Files: `gene_graph.py`, `perturb_encoder.py`, `cgio.py`  

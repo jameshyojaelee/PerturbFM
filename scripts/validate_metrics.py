@@ -53,6 +53,11 @@ def maybe_run_external(tool_dir: Path, cmd: list[str]) -> dict | None:
         return None
 
 
+def _external_missing(name: str, path: Path) -> None:
+    print(f"[info] {name} reference repo not found at {path}.")
+    print(f"[info] Clone it into {path} (gitignored) to enable parity checks.")
+
+
 def _extract_panel(ref: dict, panel: str) -> dict | None:
     if panel in ref:
         return ref.get(panel)
@@ -121,7 +126,7 @@ def main():
         if not compare_globals(ours, scpb, "scperturbench", args.tol):
             exit_code = 1
     else:
-        print("[info] scPerturBench reference repo not found; skipping external comparison")
+        _external_missing("scPerturBench", Path("third_party/scPerturBench"))
 
     pb = maybe_run_external(
         Path("third_party/PerturBench"),
@@ -133,7 +138,7 @@ def main():
         if not compare_globals(ours, pb, "perturbench", args.tol):
             exit_code = 1
     else:
-        print("[info] PerturBench reference repo not found; skipping external comparison")
+        _external_missing("PerturBench", Path("third_party/PerturBench"))
 
     if exit_code != 0:
         sys.exit(exit_code)

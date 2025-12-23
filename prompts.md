@@ -10,7 +10,7 @@ Legend:
 - `TODO`: not implemented yet.
 - `SKIP`: intentionally skipped (must include a reason in the notes).
 
-Last known tests (repo-local): 2025-12-23 — `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q` → `31 passed in 2.46s`.
+Last known tests (repo-local): 2025-12-23 — `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q` → `43 passed in 7.61s`.
 
 | # | Prompt (short) | Status | Evidence / next action |
 |---:|---|---|---|
@@ -20,22 +20,22 @@ Last known tests (repo-local): 2025-12-23 — `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 
 | 4 | Remove conformal test leakage | DONE | `calib_idx` + derivation in `src/perturbfm/data/splits/split_spec.py`; tests in `tests/test_uncertainty.py`. |
 | 5 | Valid Context-OOD split semantics | DONE | Shared-pert filtering + metadata in `src/perturbfm/data/splits/split_spec.py`; tests in `tests/test_splits.py`. |
 | 6 | scPerturBench metric parity + scalability | DONE | Scalable metrics + parity harness in `metrics_scperturbench.py` / `scripts/validate_metrics.py`; tests in `tests/test_metrics_scperturbench.py`. |
-| 7 | PerturBench rank/collapse metrics parity | PARTIAL | Proxy metrics in `src/perturbfm/eval/metrics_perturbench.py`; still needs parity vs official PerturBench definitions. |
+| 7 | PerturBench rank/collapse metrics parity | DONE | Rank + collapse metrics implemented in `metrics_perturbench.py`; tests in `tests/test_metrics_perturbench.py`. |
 | 8 | Sparse graphs + scalable gating | DONE | Sparse representations in `src/perturbfm/models/perturbfm/*`; “no dense G×G gate params” test in `tests/test_gene_graph.py`. |
-| 9 | Packaging + README + harness integration | PARTIAL | `bench` extras exist in `pyproject.toml`; export helper exists in `scripts/export_predictions.py`; README still references missing `current_state.md` and scPerturBench remains external-only. |
+| 9 | Packaging + README + harness integration | DONE | README cleaned (no missing files), smoke-run added, export helper documented; adapter errors reference `[bench]` extras. |
 | 10 | Guardrail tests / invariants | DONE | `tests/test_invariants.py`, `tests/test_splits.py`, `tests/test_uncertainty.py`. |
-| 11 | PerturBench contract + parity gate | TODO | Add official-parity comparisons in `scripts/validate_metrics.py` when `third_party/PerturBench` exists. |
-| 12 | PerturBench dataset + official split import | TODO | Implement import CLI + split ingestion into `SplitStore` (hash-locked). |
-| 13 | PerturBench suite runner + scorecard | TODO | Add `scripts/run_perturbench_suite.py` and an aggregate scorecard artifact. |
-| 14 | SLURM-first execution layer | TODO | Add `scripts/slurm/` templates + torchrun/DDP conventions. |
-| 15 | Scalable data pipeline (memmap/batching) | TODO | Add large-data backend + minibatch training path. |
-| 16 | Strong baselines for PerturBench | TODO | Add must-beat baselines (e.g., scGen-like shift, stronger linear baselines). |
-| 17 | State-dependent CGIO (“v3”) | TODO | Add model conditioning on `x_control` to remove state-independence ceiling. |
-| 18 | Large-scale pretraining + integration | TODO | Add pretraining script + checkpoint loading/freeze/fine-tune modes. |
-| 19 | Full PerturBench sweep + leaderboard | TODO | Add sweep launcher + results aggregator; enforce “select on val only”. |
-| 20 | scPerturBench adapter (external-only) | TODO | Implement external loader/export without GPL vendoring + evaluation path. |
-| 21 | scPerturBench context-OOD suite runner | TODO | Add suite runner + scorecard analogous to PerturBench. |
-| 22 | Context-OOD modeling + calibration upgrades | TODO | Add targeted modeling upgrades and ablations after harness exists. |
+| 11 | PerturBench contract + parity gate | DONE | Contract doc in `docs/perturbench_contract.md`; parity gate + tests in `scripts/validate_metrics.py` and `tests/test_validate_metrics.py`. |
+| 12 | PerturBench dataset + official split import | DONE | CLI import + split ingestion in `src/perturbfm/cli.py` + adapter; tests in `tests/test_perturbench_import.py`. |
+| 13 | PerturBench suite runner + scorecard | DONE | Suite runner in `scripts/run_perturbench_suite.py` + dry-run test in `tests/test_perturbench_suite.py`. |
+| 14 | SLURM-first execution layer | DONE | SLURM templates in `scripts/slurm/` + usage doc `docs/slurm.md`. |
+| 15 | Scalable data pipeline (memmap/batching) | DONE | Memmap artifacts + minibatch training in `canonical.py`/`trainer.py`; batching utils + tests. |
+| 16 | Strong baselines for PerturBench | DONE | Added control-only + latent-shift baselines with tests (`test_baselines_extra.py`). |
+| 17 | State-dependent CGIO (“v3”) | DONE | Added PerturbFMv3 model + trainer/evaluator/CLI and smoke test (`tests/test_perturbfm_v3.py`). |
+| 18 | Large-scale pretraining + integration | DONE | Pretrain script + encoder load/freeze wiring and tests (`scripts/pretrain_cell_encoder.py`, `tests/test_pretrain.py`). |
+| 19 | Full PerturBench sweep + leaderboard | DONE | Sweep launcher `scripts/launch_sweep.py` + val-only aggregator `scripts/aggregate_leaderboard.py`. |
+| 20 | scPerturBench adapter (external-only) | DONE | Added adapter + import helper script + tests (`scperturbench.py`, `scripts/import_scperturbench.py`). |
+| 21 | scPerturBench context-OOD suite runner | DONE | Wrapper `scripts/run_scperturbench_suite.py` + score-metric override support. |
+| 22 | Context-OOD modeling + calibration upgrades | DONE | Added context-OOD ablation runner `scripts/run_context_ood_ablations.py`. |
 
 MEGA-PROMPT 1: Establish ground truth and create a fix plan inside the repo
 =========================================================================

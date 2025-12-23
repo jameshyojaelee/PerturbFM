@@ -46,6 +46,11 @@ class SplitStore:
         path.write_text(stable_json_dumps(payload), encoding="utf-8")
         return path
 
+    def list(self) -> list[str]:
+        if not self.root.exists():
+            return []
+        return sorted(p.stem for p in self.root.glob("*.json"))
+
     def load(self, split_hash: str) -> Split:
         path = self._path_for(split_hash)
         if not path.exists():

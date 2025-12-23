@@ -17,6 +17,9 @@ class MeanDeltaBaseline:
     def fit(self, delta: np.ndarray, obs: dict, idx: np.ndarray) -> None:
         idx = np.asarray(idx, dtype=np.int64)
         train_delta = delta[idx]
+        if self.mode == "control_only":
+            self.global_mean = np.zeros(train_delta.shape[1], dtype=train_delta.dtype)
+            return
         self.global_mean = train_delta.mean(axis=0)
         if self.mode == "global":
             return
@@ -44,6 +47,8 @@ class MeanDeltaBaseline:
         if self.global_mean is None:
             raise RuntimeError("Model is not fit.")
         n = len(idx)
+        if self.mode == "control_only":
+            return np.zeros((n, self.global_mean.shape[0]), dtype=self.global_mean.dtype)
         out = np.tile(self.global_mean, (n, 1))
 
         if self.mode == "global":

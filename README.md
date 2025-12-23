@@ -5,7 +5,8 @@ Perturbation response prediction with **immutable OOD splits**, **full metric pa
 This repo is deliberately opinionated: it tries to make “fake wins” hard by baking evaluation rigor into the tooling.
 
 - Architecture + hard rules: `project_overview.md`
-- Literature + competitive positioning + v2 direction: `current_state.md`
+- Literature + competitive positioning: `references.md`
+- Roadmap + execution tracker: `prompts.md`
 
 ## What’s in the repo right now
 
@@ -76,12 +77,25 @@ If you can’t see the image above for some reason, read it as:
   - `models/`: baselines + PerturbFM models
   - `train/`: training helpers
   - `eval/`: metrics, evaluator, report
-  - `utils/`: hashing, logging, seeding
-- `scripts/`: placeholder helpers for external benchmarks
+- `utils/`: hashing, logging, seeding
+- `scripts/`: helpers (metrics parity, export predictions, external benchmark stubs)
 - `tests/`: unit + smoke tests
 - `runs/`: run artifacts (gitignored)
 - `third_party/`: external benchmarks (gitignored)
 - `splits/`: versioned split artifacts (tracked)
+
+## Quickstart (synthetic smoke run)
+
+Minimal end-to-end run on a toy dataset:
+
+```bash
+perturbfm data make-synth --out /tmp/pfm_synth --n-obs 200 --n-genes 50 --n-contexts 3 --n-perts 5
+perturbfm splits create --data /tmp/pfm_synth --spec context_ood --holdout-context C0
+# capture the printed split_hash
+perturbfm train baseline --data /tmp/pfm_synth --split <SPLIT_HASH> --baseline global_mean
+```
+
+The `train` command prints `run_dir=...`; metrics are written to `runs/<run_id>/metrics.json`.
 
 ## Dataset artifact schema
 
@@ -247,11 +261,24 @@ Typical workflow:
 - Clone benchmarks into `third_party/` (gitignored).
 - Run their scripts from `scripts/validate_metrics.py` / shell scripts without copying code into `src/perturbfm/`.
 - If you need `.h5ad` loaders, install extras: `pip install -e ".[bench]"`.
+ - Use `scripts/run_scperturbench.sh` / `scripts/run_perturbench.sh` as launch placeholders you can customize locally.
 
 Export predictions for external harnesses:
 
 ```bash
 python scripts/export_predictions.py --preds runs/<run_id>/predictions.npz --out /tmp/preds --data /path/to/artifact
+```
+
+Import scPerturBench data (external-only):
+
+```bash
+python scripts/import_scperturbench.py --dataset <name_or_path> --out /tmp/scpb_artifact
+```
+
+Run scPerturBench-style suite (wrapper around suite runner):
+
+```bash
+python scripts/run_scperturbench_suite.py --config /path/to/suite.json --out /tmp/scpb_scorecard.json
 ```
 
 ## Roadmap (next)

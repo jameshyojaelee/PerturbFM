@@ -150,18 +150,57 @@ class PerturbDataset:
         }
         meta_path.write_text(stable_json_dumps(meta), encoding="utf-8")
 
+    def save_memmap_artifact(self, out_dir: str | Path) -> None:
+        out_path = Path(out_dir)
+        out_path.mkdir(parents=True, exist_ok=True)
+        memmap_dir = out_path / "memmap"
+        memmap_dir.mkdir(parents=True, exist_ok=True)
+
+        def _save(name: str, arr: Optional[np.ndarray]) -> None:
+            if arr is None:
+                return
+            np.save(memmap_dir / f"{name}.npy", np.asarray(arr, dtype=np.float32))
+
+        _save("X_control", self.X_control)
+        _save("X_pert", self.X_pert)
+        _save("delta", self.delta)
+        np.save(memmap_dir / "obs_idx.npy", np.arange(self.n_obs, dtype=np.int64))
+
+        meta = {
+            "schema_version": 1,
+            "obs": {k: _as_list(v) if not isinstance(v, dict) else {kk: _as_list(vv) for kk, vv in v.items()} for k, v in self.obs.items()},
+            "var": list(self.var),
+            "metadata": self.metadata,
+            "artifact_type": "memmap",
+        }
+        (out_path / "meta.json").write_text(stable_json_dumps(meta), encoding="utf-8")
+
     @staticmethod
     def load_artifact(in_dir: str | Path) -> "PerturbDataset":
         in_path = Path(in_dir)
         data_path = in_path / "data.npz"
         meta_path = in_path / "meta.json"
-        if not data_path.exists() or not meta_path.exists():
-            raise FileNotFoundError("Expected data.npz and meta.json in dataset artifact.")
+        memmap_dir = in_path / "memmap"
+        if not meta_path.exists():
+            raise FileNotFoundError("Expected meta.json in dataset artifact.")
+        if not data_path.exists() and not memmap_dir.exists():
+            raise FileNotFoundError("Expected data.npz or memmap/ in dataset artifact.")
 
-        with np.load(data_path) as npz:
-            X_control = npz["X_control"] if "X_control" in npz else None
-            X_pert = npz["X_pert"] if "X_pert" in npz else None
-            delta = npz["delta"] if "delta" in npz else None
+        if data_path.exists():
+            with np.load(data_path) as npz:
+                X_control = npz["X_control"] if "X_control" in npz else None
+                X_pert = npz["X_pert"] if "X_pert" in npz else None
+                delta = npz["delta"] if "delta" in npz else None
+        else:
+            def _load(name: str) -> Optional[np.ndarray]:
+                path = memmap_dir / f"{name}.npy"
+                if not path.exists():
+                    return None
+                return np.load(path, mmap_mode="r")
+
+            X_control = _load("X_control")
+            X_pert = _load("X_pert")
+            delta = _load("delta")
 
         meta = json.loads(meta_path.read_text(encoding="utf-8"))
         obs = meta.get("obs", {})

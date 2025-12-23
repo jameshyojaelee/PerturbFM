@@ -37,6 +37,7 @@ def _add_data(subparsers: argparse._SubParsersAction) -> None:
     import_pb = data_sub.add_parser("import-perturbench", help="Import a PerturBench dataset into PerturbDataset artifact format.")
     import_pb.add_argument("--dataset", required=True, help="PerturBench dataset name or path.")
     import_pb.add_argument("--out", required=True, help="Output directory for the dataset artifact.")
+    import_pb.add_argument("--backed", action="store_true", help="Use backed mode when reading .h5ad (still materializes arrays).")
     import_pb.set_defaults(func=_cmd_data_import_perturbench)
 
 
@@ -65,6 +66,15 @@ def _add_splits(subparsers: argparse._SubParsersAction) -> None:
     show.add_argument("hash", help="Split hash.")
     show.set_defaults(func=_cmd_splits_show)
 
+    list_cmd = split_sub.add_parser("list", help="List stored splits.")
+    list_cmd.set_defaults(func=_cmd_splits_list)
+
+    import_pb = split_sub.add_parser("import-perturbench", help="Import official PerturBench splits into SplitStore.")
+    import_pb.add_argument("--dataset", required=True, help="PerturBench dataset name or path.")
+    import_pb.add_argument("--data", required=True, help="Path to dataset artifact (for index validation).")
+    import_pb.add_argument("--split-dir", help="Optional directory containing split JSON files.")
+    import_pb.set_defaults(func=_cmd_splits_import_perturbench)
+
 
 def _add_train(subparsers: argparse._SubParsersAction) -> None:
     parser = subparsers.add_parser("train", help="Training utilities.")
@@ -77,13 +87,16 @@ def _add_train(subparsers: argparse._SubParsersAction) -> None:
         "--baseline",
         required=True,
         choices=[
+            "control_only",
             "global_mean",
             "per_perturbation_mean",
             "per_perturbation_context_mean",
+            "latent_shift",
             "ridge",
         ],
     )
     baseline.add_argument("--alpha", type=float, default=1.0, help="Ridge regularization (ridge baseline only).")
+    baseline.add_argument("--n-components", type=int, default=32, help="Latent shift PCA components (latent_shift only).")
     baseline.add_argument("--ensemble-size", type=int, default=1)
     baseline.add_argument("--conformal", action="store_true")
     baseline.add_argument("--out", default=None, help="Optional output run directory.")
@@ -96,6 +109,10 @@ def _add_train(subparsers: argparse._SubParsersAction) -> None:
     v0.add_argument("--lr", type=float, default=1e-3)
     v0.add_argument("--epochs", type=int, default=50)
     v0.add_argument("--device", default="cpu")
+    v0.add_argument("--batch-size", type=int, default=None)
+    v0.add_argument("--seed", type=int, default=0)
+    v0.add_argument("--pretrained-encoder", help="Path to pretrained CellEncoder checkpoint.")
+    v0.add_argument("--freeze-encoder", action="store_true", help="Freeze pretrained CellEncoder weights.")
     v0.add_argument("--no-basal", action="store_true")
     v0.add_argument("--no-context", action="store_true")
     v0.add_argument("--no-perturbation", action="store_true")
@@ -113,6 +130,10 @@ def _add_train(subparsers: argparse._SubParsersAction) -> None:
     v1.add_argument("--lr", type=float, default=1e-3)
     v1.add_argument("--epochs", type=int, default=50)
     v1.add_argument("--device", default="cpu")
+    v1.add_argument("--batch-size", type=int, default=None)
+    v1.add_argument("--seed", type=int, default=0)
+    v1.add_argument("--pretrained-encoder", help="Path to pretrained CellEncoder checkpoint.")
+    v1.add_argument("--freeze-encoder", action="store_true", help="Freeze pretrained CellEncoder weights.")
     v1.add_argument("--no-graph", action="store_true")
     v1.add_argument("--no-gating", action="store_true")
     v1.add_argument("--gating-mode", choices=["none", "scalar", "node", "lowrank", "mlp"], default=None)
@@ -128,6 +149,8 @@ def _add_train(subparsers: argparse._SubParsersAction) -> None:
     v2.add_argument("--lr", type=float, default=1e-3)
     v2.add_argument("--epochs", type=int, default=50)
     v2.add_argument("--device", default="cpu")
+    v2.add_argument("--batch-size", type=int, default=None)
+    v2.add_argument("--seed", type=int, default=0)
     v2.add_argument("--no-gating", action="store_true")
     v2.add_argument("--no-contextual-operator", action="store_true")
     v2.add_argument("--num-bases", type=int, default=4)
@@ -137,6 +160,25 @@ def _add_train(subparsers: argparse._SubParsersAction) -> None:
     v2.add_argument("--conformal", action="store_true")
     v2.add_argument("--out", default=None, help="Optional output run directory.")
     v2.set_defaults(func=_cmd_train_perturbfm_v2)
+
+    v3 = train_sub.add_parser("perturbfm-v3", help="Train and evaluate PerturbFM v3 (state-dependent CGIO).")
+    v3.add_argument("--data", required=True, help="Path to dataset artifact.")
+    v3.add_argument("--split", required=True, help="Split hash (must exist in split store).")
+    v3.add_argument("--hidden-dim", type=int, default=128)
+    v3.add_argument("--lr", type=float, default=1e-3)
+    v3.add_argument("--epochs", type=int, default=50)
+    v3.add_argument("--device", default="cpu")
+    v3.add_argument("--batch-size", type=int, default=None)
+    v3.add_argument("--seed", type=int, default=0)
+    v3.add_argument("--pretrained-encoder", help="Path to pretrained CellEncoder checkpoint.")
+    v3.add_argument("--freeze-encoder", action="store_true", help="Freeze pretrained CellEncoder weights.")
+    v3.add_argument("--no-gating", action="store_true")
+    v3.add_argument("--gating-mode", choices=["none", "scalar", "node", "lowrank", "mlp"], default=None)
+    v3.add_argument("--adjacency", action="append", default=None, help="Path to .npz with key 'adjacency' (may be provided multiple times for multi-graph).")
+    v3.add_argument("--ensemble-size", type=int, default=1)
+    v3.add_argument("--conformal", action="store_true")
+    v3.add_argument("--out", default=None, help="Optional output run directory.")
+    v3.set_defaults(func=_cmd_train_perturbfm_v3)
 
 
 def _add_eval(subparsers: argparse._SubParsersAction) -> None:
@@ -199,10 +241,14 @@ def _cmd_data_info(args: argparse.Namespace) -> int:
 
 
 def _cmd_data_import_perturbench(args: argparse.Namespace) -> int:
-    raise NotImplementedError(
-        "PerturBench import requires the official benchmark locally. "
-        "Implement the loader in perturbfm.data.adapters.perturbench and retry."
-    )
+    from perturbfm.data.adapters.perturbench import PerturBenchAdapter
+
+    adapter = PerturBenchAdapter(args.dataset)
+    ds = adapter.load(backed=args.backed)
+    ds.save_artifact(args.out)
+    print(f"Wrote PerturBench artifact to {args.out}")
+    print(f"n_obs={ds.n_obs} n_genes={ds.n_genes}")
+    return 0
 
 
 def _cmd_splits_create(args: argparse.Namespace) -> int:
@@ -262,12 +308,50 @@ def _cmd_splits_show(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_splits_list(_args: argparse.Namespace) -> int:
+    from perturbfm.data.splits.split_store import SplitStore
+
+    store = SplitStore.default()
+    hashes = store.list()
+    if not hashes:
+        print("No splits found.")
+        return 0
+    for split_hash in hashes:
+        split = store.load(split_hash)
+        print(
+            f"{split_hash} train={len(split.train_idx)} val={len(split.val_idx)} "
+            f"test={len(split.test_idx)} ood_axes={split.ood_axes}"
+        )
+    return 0
+
+
+def _cmd_splits_import_perturbench(args: argparse.Namespace) -> int:
+    from perturbfm.data.adapters.perturbench import PerturBenchAdapter
+    from perturbfm.data.canonical import PerturbDataset
+    from perturbfm.data.splits.split_store import SplitStore
+
+    ds = PerturbDataset.load_artifact(args.data)
+    adapter = PerturBenchAdapter(args.dataset)
+    payloads = adapter.load_official_splits(args.split_dir)
+    store = SplitStore.default()
+    imported = 0
+    for name, payload in payloads.items():
+        split = adapter.parse_split_payload(payload, n_obs=ds.n_obs, name=name)
+        split.freeze()
+        store.save(split)
+        imported += 1
+    print(f"Imported {imported} PerturBench splits into {store.root}")
+    return 0
+
+
 def _cmd_train_baseline(args: argparse.Namespace) -> int:
     from perturbfm.eval.evaluator import run_baseline
 
     kwargs = {}
     if args.baseline == "ridge":
         kwargs["alpha"] = args.alpha
+    if args.baseline == "latent_shift":
+        kwargs["n_components"] = args.n_components
     run_dir = run_baseline(
         data_path=args.data,
         split_hash=args.split,
@@ -292,6 +376,10 @@ def _cmd_train_perturbfm_v0(args: argparse.Namespace) -> int:
         lr=args.lr,
         epochs=args.epochs,
         device=args.device,
+        batch_size=args.batch_size,
+        seed=args.seed,
+        pretrained_encoder=args.pretrained_encoder,
+        freeze_encoder=args.freeze_encoder,
         use_basal=not args.no_basal,
         use_context=not args.no_context,
         use_perturbation=not args.no_perturbation,
@@ -328,6 +416,10 @@ def _cmd_train_perturbfm_v1(args: argparse.Namespace) -> int:
         lr=args.lr,
         epochs=args.epochs,
         device=args.device,
+        batch_size=args.batch_size,
+        seed=args.seed,
+        pretrained_encoder=args.pretrained_encoder,
+        freeze_encoder=args.freeze_encoder,
         use_graph=not args.no_graph,
         use_gating=not args.no_gating,
         gating_mode=args.gating_mode,
@@ -358,10 +450,44 @@ def _cmd_train_perturbfm_v2(args: argparse.Namespace) -> int:
         lr=args.lr,
         epochs=args.epochs,
         device=args.device,
+        batch_size=args.batch_size,
+        seed=args.seed,
         use_gating=not args.no_gating,
         gating_mode=args.gating_mode,
         contextual_operator=not args.no_contextual_operator,
         num_bases=args.num_bases,
+        ensemble_size=args.ensemble_size,
+        conformal=args.conformal,
+    )
+    print(f"run_dir={run_dir}")
+    return 0
+
+
+def _cmd_train_perturbfm_v3(args: argparse.Namespace) -> int:
+    import numpy as np
+    from perturbfm.eval.evaluator import run_perturbfm_v3
+
+    adjs = None
+    if args.adjacency:
+        adjs = []
+        for path in args.adjacency:
+            with np.load(path) as npz:
+                adjs.append(npz["adjacency"])
+    run_dir = run_perturbfm_v3(
+        data_path=args.data,
+        split_hash=args.split,
+        adjacency=adjs,
+        out_dir=args.out,
+        hidden_dim=args.hidden_dim,
+        lr=args.lr,
+        epochs=args.epochs,
+        device=args.device,
+        batch_size=args.batch_size,
+        seed=args.seed,
+        pretrained_encoder=args.pretrained_encoder,
+        freeze_encoder=args.freeze_encoder,
+        use_gating=not args.no_gating,
+        gating_mode=args.gating_mode,
         ensemble_size=args.ensemble_size,
         conformal=args.conformal,
     )

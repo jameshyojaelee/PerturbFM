@@ -8,6 +8,7 @@ from torch import nn
 from perturbfm.models.perturbfm.cell_encoder import CellEncoder
 from perturbfm.models.perturbfm.fusion import MLP
 from perturbfm.models.perturbfm.perturb_encoder import PerturbationEncoder
+from perturbfm.models.perturbfm.cgio import GraphPropagator
 
 
 class PerturbFMv0(nn.Module):
@@ -94,5 +95,37 @@ class PerturbFMv1(nn.Module):
 
         mean = self.basal_head(cell_emb) + self.context_head(ctx_emb) + self.pert_head(pert_emb)
         fused = torch.cat([cell_emb, pert_emb, ctx_emb], dim=-1)
+        var = torch.nn.functional.softplus(self.var_head(fused)) + 1e-6
+        return mean, var
+
+
+class PerturbFMv3(nn.Module):
+    def __init__(
+        self,
+        n_genes: int,
+        num_contexts: int,
+        hidden_dim: int,
+        adjacencies: list[torch.Tensor],
+        use_gating: bool = True,
+        gating_mode: str | None = None,
+    ):
+        super().__init__()
+        self.cell_encoder = CellEncoder(n_genes, hidden_dim)
+        self.context_encoder = nn.Embedding(num_contexts, hidden_dim)
+        self.pert_encoder = GraphPropagator(
+            adjacencies=adjacencies,
+            hidden_dim=hidden_dim,
+            use_gating=use_gating,
+            gating_mode=gating_mode,
+        )
+        self.fuse = MLP(hidden_dim * 3, n_genes, hidden_dim)
+        self.var_head = MLP(hidden_dim * 3, n_genes, hidden_dim)
+
+    def forward(self, x_control: torch.Tensor, pert_mask: torch.Tensor, context_idx: torch.Tensor):
+        basal = self.cell_encoder(x_control)
+        ctx_emb = self.context_encoder(context_idx)
+        pert_emb = self.pert_encoder(pert_mask, ctx_emb)
+        fused = torch.cat([basal, pert_emb, ctx_emb], dim=-1)
+        mean = self.fuse(fused)
         var = torch.nn.functional.softplus(self.var_head(fused)) + 1e-6
         return mean, var
