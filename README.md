@@ -1,10 +1,21 @@
 # PerturbFM
 
-Perturbation response prediction with **immutable OOD splits**, **full metric panels**, and **calibrated uncertainty**
+Predict perturbation-induced gene-expression changes — with **frozen out-of-distribution (OOD) splits**, **complete metric panels**, and **calibrated uncertainty**
 
 Perturbation modeling is one of those areas where it’s easy to get impressive numbers for the wrong reasons: split drift, silent leakage, cherry-picked metrics, or evaluation scripts that don’t match the benchmark’s intent. This repository is designed to prevent those failure modes by making rigor the default.
 
 The goal of this work is not “just another model.” It’s a workflow that turns your experiments into artifacts you can stand behind: frozen splits, complete metric panels, calibrated uncertainty, and provenance-rich run outputs — so when a result looks good, you can trust it (and reproduce it later).
+
+Why I started this project:
+- Wet-lab perturbation experiments are expensive and combinatorial; we can’t measure every (context × perturbation × dose × time) condition.
+- Perturbation response models predict **gene expression change** (delta) from a baseline/control state + an intervention description + context/covariates, enabling **in silico screening** and better experimental prioritization.
+- The “foundation model” goal is reusable structure + generalization (unseen contexts / perturbations / combinations) with uncertainty that tells you when not to trust a prediction.
+
+What PerturbFM is opinionated about:
+- **Frozen out-of-distribution (OOD) splits** (hash-locked and stored) so “OOD” actually means OOD.
+- **Complete metric panels** so results are not cherry-picked.
+- **Calibrated uncertainty** so models can be compared by reliability, not only accuracy.
+- **Provenance-rich run artifacts** so results are reproducible from outputs alone.
 
 ## What’s in the repo right now
 
