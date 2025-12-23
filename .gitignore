@@ -24,3 +24,8 @@ project_overview.md
 current_state.md
 references.md
 prompts.md
+
+# Local-only agent prompts/guidelines
+docs/SYSTEM_PROMPT.md
+docs/AGENT_GUIDELINES.md
+AGENTS.md

@@ -1,6 +1,8 @@
 # Dev TODO (PerturbFM)
 
 This file is the internal fix list derived from `docs/prompts.md` MEGA‑PROMPT 1.
+For repository layout and current architecture, see `README.md` and `docs/prompts.md` (Project overview).
+For local agent behavior rules, see `docs/SYSTEM_PROMPT.md` / `docs/AGENT_GUIDELINES.md` (gitignored by design).
 
 ## Pre‑change test run
 
@@ -16,31 +18,16 @@ Result (2025‑12‑23):
 22 passed in 3.20s
 ```
 
-## Repo module summary (ground truth)
+## Repo module summary (pointer)
 
-- **splits**: `src/perturbfm/data/splits/`
-  - `split_spec.py`: defines `Split` + generators (`context_ood_split`, `perturbation_ood_split`, `combo_generalization_split`, `covariate_transfer_split`)
-  - `split_store.py`: stores frozen splits by hash under `splits/`
-- **evaluator**: `src/perturbfm/eval/evaluator.py`
-  - run entrypoints: `run_baseline`, `run_perturbfm_v0/v1/v2`, `evaluate_predictions`
-  - enforces metric completeness for baseline/v0/v2; v1 currently missing the guard
-  - conformal intervals currently computed on **test** subset
-- **scPerturBench metrics**: `src/perturbfm/eval/metrics_scperturbench.py`
-  - MSE, PCC, Energy, Wasserstein, KL, Common‑DEGs
-  - Energy uses pair sampling (bounded); Wasserstein is sliced via random projections; Common‑DEGs uses |mean/std| effect sizes
-- **PerturBench metrics**: `src/perturbfm/eval/metrics_perturbench.py`
-  - RMSE, RankMetrics (mean-delta Spearman), TopKOverlap, VarianceDiagnostics, DiversityRatio
-  - rank/collapse metrics are implemented; parity vs official still needs external validation
-- **CGIO**: `src/perturbfm/models/perturbfm/cgio.py`
-  - `GraphPropagator` uses dense adjacency + dense gating matrices
-  - forward references an undefined `residual`
-- **Graph encoder / graph utils**:
-  - `src/perturbfm/models/perturbfm/perturb_encoder.py`: dense adjacency + dense gating
-  - `src/perturbfm/models/perturbfm/gene_graph.py`: dense adjacency (`[G, G]`)
+This section intentionally stays lightweight to avoid drifting from the code.
+Use the current sources of truth:
+- `README.md` → “Repository layout”
+- `docs/prompts.md` → “Project overview (detailed)”
 
-## Issue records (A–I) — status
+## Issue records (A–I) — status (archived)
 
-Each record includes location + why it matters.
+These were the original MEGA‑PROMPT 1 findings. They are retained as historical record.
 
 A) **CGIO GraphPropagator uses undefined `residual`** — **fixed**
 - File: `src/perturbfm/models/perturbfm/cgio.py`
@@ -125,11 +112,9 @@ I) **`pyproject.toml` lacks bench extras** — **fixed**
    - File: `pyproject.toml`  
    - Acceptance: `pip install -e ".[bench]"` works with anndata/h5py.
 
-## Do‑not‑do constraints
+## Do‑not‑do constraints (moved)
 
-- **No test leakage**: conformal calibration must never use `test_idx`.
-- **No GPL vendoring**: external benchmark code stays under `third_party/`.
-- **No silent split regeneration**: splits must remain frozen + hash‑locked.
+See `docs/SYSTEM_PROMPT.md` (local, gitignored) for the current hard‑rule list.
 
 ## Calibration split derivation (note)
 
