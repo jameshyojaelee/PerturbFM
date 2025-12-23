@@ -102,6 +102,21 @@ Common `obs` fields you’ll see in practice:
 - `pert_genes`: (v2 CGIO) list of perturbed gene IDs per row (empty list for controls)
 - `covariates`: optional dict of arrays (dose/time/etc.)
 
+## Graph format + gating modes (v1/v2)
+
+Graph files should be sparse‑friendly and aligned to `var` order:
+
+- `graphs/<name>.npz`
+  - `adjacency`: float32 `[G, G]` (dense allowed for small graphs; converted to sparse internally)
+  - `genes`: list of length `G` matching `var`
+
+Gating modes (for graph trust):
+- `none` — no gating
+- `scalar` — single global gate
+- `node` — per‑node gate
+- `lowrank` — low‑rank edge gating (U,V embeddings)
+- `mlp` — edge gating via small MLP over node embeddings
+
 ## Split system
 
 Splits are immutable and hash‑locked:
@@ -231,6 +246,13 @@ This repo does **not** vendor benchmark code. The intent is:
 Typical workflow:
 - Clone benchmarks into `third_party/` (gitignored).
 - Run their scripts from `scripts/validate_metrics.py` / shell scripts without copying code into `src/perturbfm/`.
+- If you need `.h5ad` loaders, install extras: `pip install -e ".[bench]"`.
+
+Export predictions for external harnesses:
+
+```bash
+python scripts/export_predictions.py --preds runs/<run_id>/predictions.npz --out /tmp/preds --data /path/to/artifact
+```
 
 ## Roadmap (next)
 

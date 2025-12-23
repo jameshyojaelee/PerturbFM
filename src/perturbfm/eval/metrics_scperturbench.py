@@ -8,10 +8,12 @@ import numpy as np
 
 
 def _mse(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+    """Mean squared error across all genes and samples."""
     return float(((y_true - y_pred) ** 2).mean())
 
 
 def _pcc_delta(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+    """Pearson correlation over flattened delta vectors."""
     y_true = y_true.reshape(-1)
     y_pred = y_pred.reshape(-1)
     if y_true.std() == 0 or y_pred.std() == 0:
@@ -19,11 +21,18 @@ def _pcc_delta(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     return float(np.corrcoef(y_true, y_pred)[0, 1])
 
 
-def _energy_distance(_y_true: np.ndarray, _y_pred: np.ndarray) -> float:
+def _energy_distance(_y_true: np.ndarray, _y_pred: np.ndarray, max_n: int = 200, seed: int = 0) -> float:
+    """
+    Energy distance between two multivariate samples.
+    Scalable default: subsample to at most max_n points per set.
+    """
+    rng = np.random.default_rng(seed)
     x = _y_true.reshape(_y_true.shape[0], -1)
     y = _y_pred.reshape(_y_pred.shape[0], -1)
-    nx, ny = x.shape[0], y.shape[0]
-    # pairwise distances
+    if x.shape[0] > max_n:
+        x = x[rng.choice(x.shape[0], size=max_n, replace=False)]
+    if y.shape[0] > max_n:
+        y = y[rng.choice(y.shape[0], size=max_n, replace=False)]
     dx = np.sqrt(((x[:, None, :] - x[None, :, :]) ** 2).sum(axis=2))
     dy = np.sqrt(((y[:, None, :] - y[None, :, :]) ** 2).sum(axis=2))
     dxy = np.sqrt(((x[:, None, :] - y[None, :, :]) ** 2).sum(axis=2))
@@ -32,7 +41,10 @@ def _energy_distance(_y_true: np.ndarray, _y_pred: np.ndarray) -> float:
 
 
 def _wasserstein_distance(_y_true: np.ndarray, _y_pred: np.ndarray) -> float:
-    # Approximate 1D Wasserstein per gene via quantile matching, then average.
+    """
+    Approximate per-gene 1D Wasserstein by fixed quantile matching and average across genes.
+    This is a scalable proxy for multivariate Wasserstein without external deps.
+    """
     x = _y_true
     y = _y_pred
     if x.shape[0] == 0 or y.shape[0] == 0:
@@ -47,7 +59,10 @@ def _wasserstein_distance(_y_true: np.ndarray, _y_pred: np.ndarray) -> float:
 
 
 def _kl_divergence(_y_true: np.ndarray, _y_pred: np.ndarray) -> float:
-    # Diagonal Gaussian approximation
+    """
+    KL divergence between diagonal Gaussians fitted to true/pred distributions.
+    Assumes gene-wise independence.
+    """
     mu_p = _y_true.mean(axis=0)
     mu_q = _y_pred.mean(axis=0)
     var_p = _y_true.var(axis=0) + 1e-8
@@ -56,9 +71,12 @@ def _kl_divergence(_y_true: np.ndarray, _y_pred: np.ndarray) -> float:
     return float(kl / _y_true.shape[1])
 
 
-def _common_degs(_y_true: np.ndarray, _y_pred: np.ndarray) -> float:
-    # Placeholder: rank genes by absolute delta; compute overlap@100.
-    k = min(100, _y_true.shape[1])
+def _common_degs(_y_true: np.ndarray, _y_pred: np.ndarray, k: int = 100) -> float:
+    """
+    Common-DEGs: overlap of top-k genes ranked by |mean delta|.
+    Deterministic and scale-friendly.
+    """
+    k = min(k, _y_true.shape[1])
     true_rank = np.argsort(-np.abs(_y_true).mean(axis=0))[:k]
     pred_rank = np.argsort(-np.abs(_y_pred).mean(axis=0))[:k]
     overlap = len(set(true_rank.tolist()) & set(pred_rank.tolist()))
@@ -114,9 +132,9 @@ def compute_scperturbench_metrics(y_true: np.ndarray, y_pred: np.ndarray, obs: d
         "per_perturbation": per_pert,
         "per_context": per_context,
         "notes": {
-            "Energy": "TODO: validate against reference.",
-            "Wasserstein": "TODO: validate against reference.",
-            "KL": "TODO: validate against reference.",
-            "Common_DEGs": "TODO: validate against reference.",
+            "Energy": "Subsampled energy distance (max_n=200).",
+            "Wasserstein": "Per-gene quantile matching approximation.",
+            "KL": "Diagonal Gaussian assumption.",
+            "Common_DEGs": "Top-k overlap by |mean delta|.",
         },
     }

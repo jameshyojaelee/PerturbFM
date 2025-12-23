@@ -27,6 +27,10 @@ where = ["src"]
 dev = [
   "pytest>=7.0",
 ]
+bench = [
+  "anndata>=0.10",
+  "h5py>=3.8",
+]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

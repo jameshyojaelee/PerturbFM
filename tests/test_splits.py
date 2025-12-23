@@ -45,3 +45,14 @@ def test_covariate_transfer_split_disjoint():
     covs = ["low", "high", "low", "mid"]
     split = split_spec.covariate_transfer_split(covs, holdout_values=["high"])
     assert set(split.test_idx.tolist()) == {1}
+
+
+def test_context_ood_filters_unshared_perts():
+    contexts = ["C0", "C0", "C1", "C1"]
+    perts = ["P0", "P1", "P2", "P2"]
+    split = split_spec.context_ood_split(contexts, ["C1"], obs_perts=perts, seed=0, val_fraction=0.5)
+    # P2 not in train; test should be filtered empty
+    assert len(split.test_idx) == 0
+    assert "context" in split.ood_axes
+    assert "perturbation" in split.ood_axes
+    assert split.notes.get("warning") == "test_filtered_for_shared_perturbations"

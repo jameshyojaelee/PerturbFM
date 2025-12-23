@@ -67,6 +67,7 @@ class PerturbFMv1(nn.Module):
         hidden_dim: int = 128,
         use_graph: bool = True,
         use_gating: bool = True,
+        gating_mode: str | None = None,
     ):
         super().__init__()
         from perturbfm.models.perturbfm.perturb_encoder import GraphPerturbationEncoder
@@ -78,6 +79,7 @@ class PerturbFMv1(nn.Module):
             hidden_dim=hidden_dim,
             use_graph=use_graph,
             use_gating=use_gating,
+            gating_mode=gating_mode,
         )
 
         self.basal_head = MLP(hidden_dim, n_genes, hidden_dim)

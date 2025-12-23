@@ -56,7 +56,7 @@ def fit_predict_baseline(model, dataset: PerturbDataset, split: Split) -> Dict[s
     var = residual.var(axis=0, ddof=1) + 1e-6
     test_pred = _predict_baseline(model, dataset, split.test_idx)
     var_broadcast = np.tile(var, (len(split.test_idx), 1))
-    return {"mean": test_pred, "var": var_broadcast, "idx": split.test_idx}
+    return {"mean": test_pred, "var": var_broadcast, "idx": split.test_idx, "model": model}
 
 
 def _build_index(values):
@@ -137,6 +137,7 @@ def fit_predict_perturbfm_v1(
     device: str = "cpu",
     use_graph: bool = True,
     use_gating: bool = True,
+    gating_mode: str | None = None,
 ):
     try:
         import torch
@@ -161,6 +162,7 @@ def fit_predict_perturbfm_v1(
         hidden_dim=hidden_dim,
         use_graph=use_graph,
         use_gating=use_gating,
+        gating_mode=gating_mode,
     ).to(device)
 
     optimizer = build_optimizer(model.parameters(), lr=lr)
@@ -202,6 +204,7 @@ def fit_predict_perturbfm_v2(
     epochs: int = 50,
     device: str = "cpu",
     use_gating: bool = True,
+    gating_mode: str | None = None,
     contextual_operator: bool = True,
     num_bases: int = 4,
     adjacencies: List[np.ndarray] | None = None,
@@ -229,6 +232,7 @@ def fit_predict_perturbfm_v2(
         adjacencies=adj_tensors,
         num_bases=num_bases,
         use_gating=use_gating,
+        gating_mode=gating_mode,
         contextual_operator=contextual_operator,
     ).to(device)
 

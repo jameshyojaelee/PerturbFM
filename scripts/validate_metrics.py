@@ -56,6 +56,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--data", required=True, help="Path to dataset artifact directory")
     ap.add_argument("--preds", required=True, help="Path to predictions.npz")
+    ap.add_argument("--reference-json", help="Optional reference metrics JSON to compare against.")
+    ap.add_argument("--tol", type=float, default=1e-3, help="Tolerance for numeric comparisons.")
     args = ap.parse_args()
 
     data_path = Path(args.data)
@@ -64,6 +66,23 @@ def main():
     ours = run_internal(data_path, preds_path)
     print("=== PerturbFM metrics ===")
     print(stable_json_dumps(ours))
+
+    # Optional reference comparison
+    if args.reference_json:
+        ref = json.loads(Path(args.reference_json).read_text())
+        ok = True
+        for panel in ("scperturbench", "perturbench"):
+            for key, val in ours[panel]["global"].items():
+                ref_val = ref.get(panel, {}).get("global", {}).get(key)
+                if ref_val is None:
+                    print(f"[warn] reference missing {panel}.global.{key}")
+                    ok = False
+                    continue
+                if abs(ref_val - val) > args.tol:
+                    print(f"[fail] {panel}.global.{key}: ours={val:.6f} ref={ref_val:.6f}")
+                    ok = False
+        if ok:
+            print("[ok] reference comparison within tolerance")
 
     # Optional external comparisons (expected to be implemented by user locally)
     scpb = maybe_run_external(

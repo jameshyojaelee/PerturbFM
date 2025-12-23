@@ -39,7 +39,7 @@ def test_v1_enforces_metric_completeness(monkeypatch, tmp_path):
     ds = make_synthetic_dataset(n_obs=20, n_genes=6, seed=1)
     data_dir = tmp_path / "data"
     ds.save_artifact(data_dir)
-    split = context_ood_split(ds.obs["context_id"], ["C0"], seed=0).freeze()
+    split = context_ood_split(ds.obs["context_id"], ["C0"], obs_perts=ds.obs["pert_id"], seed=0).freeze()
     store = SplitStore(root=tmp_path / "splits")
     store.save(split)
     monkeypatch.setenv("PERTURBFM_SPLIT_DIR", str(tmp_path / "splits"))
@@ -58,6 +58,61 @@ def test_v1_enforces_metric_completeness(monkeypatch, tmp_path):
             split_hash=split.frozen_hash,
             adjacency=adj,
             pert_gene_masks=pert_gene_masks,
+            epochs=1,
+            hidden_dim=8,
+        )
+
+
+def _patch_incomplete_metrics(monkeypatch, evaluator):
+    monkeypatch.setattr(evaluator, "compute_scperturbench_metrics", lambda *a, **k: {"global": {"MSE": 0.0}})
+    monkeypatch.setattr(evaluator, "compute_perturbench_metrics", lambda *a, **k: {"global": {"RMSE": 0.0}})
+    monkeypatch.setattr(evaluator, "compute_uncertainty_metrics", lambda *a, **k: {"coverage": {}, "nll": 0.0, "risk_coverage": {}, "ood_auroc": None})
+
+
+def test_v0_enforces_metric_completeness(monkeypatch, tmp_path):
+    from perturbfm.data.registry import make_synthetic_dataset
+    from perturbfm.data.splits.split_spec import context_ood_split
+    from perturbfm.data.splits.split_store import SplitStore
+    from perturbfm.eval import evaluator
+
+    ds = make_synthetic_dataset(n_obs=20, n_genes=6, seed=1)
+    data_dir = tmp_path / "data"
+    ds.save_artifact(data_dir)
+    split = context_ood_split(ds.obs["context_id"], ["C0"], obs_perts=ds.obs["pert_id"], seed=0).freeze()
+    store = SplitStore(root=tmp_path / "splits")
+    store.save(split)
+    monkeypatch.setenv("PERTURBFM_SPLIT_DIR", str(tmp_path / "splits"))
+
+    _patch_incomplete_metrics(monkeypatch, evaluator)
+    with pytest.raises(ValueError):
+        evaluator.run_perturbfm_v0(
+            data_path=str(data_dir),
+            split_hash=split.frozen_hash,
+            epochs=1,
+            hidden_dim=8,
+        )
+
+
+def test_v2_enforces_metric_completeness(monkeypatch, tmp_path):
+    from perturbfm.data.registry import make_synthetic_dataset
+    from perturbfm.data.splits.split_spec import context_ood_split
+    from perturbfm.data.splits.split_store import SplitStore
+    from perturbfm.eval import evaluator
+
+    ds = make_synthetic_dataset(n_obs=20, n_genes=6, seed=1)
+    data_dir = tmp_path / "data"
+    ds.save_artifact(data_dir)
+    split = context_ood_split(ds.obs["context_id"], ["C0"], obs_perts=ds.obs["pert_id"], seed=0).freeze()
+    store = SplitStore(root=tmp_path / "splits")
+    store.save(split)
+    monkeypatch.setenv("PERTURBFM_SPLIT_DIR", str(tmp_path / "splits"))
+
+    _patch_incomplete_metrics(monkeypatch, evaluator)
+    with pytest.raises(ValueError):
+        evaluator.run_perturbfm_v2(
+            data_path=str(data_dir),
+            split_hash=split.frozen_hash,
+            adjacency=None,
             epochs=1,
             hidden_dim=8,
         )

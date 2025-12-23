@@ -10,18 +10,21 @@ import numpy as np
 
 from perturbfm.data.canonical import PerturbDataset
 from perturbfm.data.splits.split_store import SplitStore
+from perturbfm.data.splits.split_spec import _derive_calib_idx
 from perturbfm.eval.metrics_scperturbench import compute_scperturbench_metrics
 from perturbfm.eval.metrics_perturbench import compute_perturbench_metrics
 from perturbfm.eval.uncertainty_metrics import compute_uncertainty_metrics
 from perturbfm.eval.report import render_report
 from perturbfm.models.uncertainty.conformal import conformal_intervals
 from perturbfm.train.trainer import (
+    _predict_baseline,
     fit_predict_baseline,
     fit_predict_perturbfm_v0,
     fit_predict_perturbfm_v1,
     fit_predict_perturbfm_v2,
     get_baseline,
 )
+from perturbfm.data.transforms import pert_genes_to_mask
 from perturbfm.utils.hashing import stable_json_dumps, sha256_json
 from perturbfm.utils.config import config_hash
 
@@ -50,7 +53,89 @@ def _ensemble_predictions(run_fn, ensemble_size: int):
     aleatoric = var_stack.mean(axis=0)
     epistemic = mean_stack.var(axis=0)
     total_var = aleatoric + epistemic
-    return {"mean": mean, "var": total_var, "idx": preds_list[0]["idx"]}
+    models = [p.get("model") for p in preds_list if p.get("model") is not None]
+    meta = {k: v for k, v in preds_list[0].items() if k not in ("mean", "var", "idx", "model")}
+    out = {"mean": mean, "var": total_var, "idx": preds_list[0]["idx"]}
+    if models:
+        out["models"] = models
+    out.update(meta)
+    return out
+
+
+def _get_calib_idx(split) -> tuple[np.ndarray, str]:
+    if split.calib_idx is not None:
+        return np.asarray(split.calib_idx, dtype=np.int64), "split.calib_idx"
+    calib = _derive_calib_idx(split.val_idx, split.seed, split.frozen_hash or split.compute_hash())
+    return calib, "derived_from_val"
+
+
+def _assert_no_test_leak(calib_idx: np.ndarray, test_idx: np.ndarray) -> None:
+    if np.intersect1d(calib_idx, test_idx).size > 0:
+        raise ValueError("Calibration indices overlap test indices (leakage).")
+
+
+def _predict_baseline_models(models, dataset: PerturbDataset, idx: np.ndarray) -> np.ndarray:
+    preds = []
+    for model in models:
+        preds.append(_predict_baseline(model, dataset, idx))
+    return np.mean(preds, axis=0)
+
+
+def _predict_v0_models(models, dataset: PerturbDataset, idx: np.ndarray, pert_map: dict, ctx_map: dict) -> np.ndarray:
+    import torch
+
+    pert_idx_all = np.array([pert_map[p] for p in dataset.obs["pert_id"]], dtype=np.int64)
+    ctx_idx_all = np.array([ctx_map[c] for c in dataset.obs["context_id"]], dtype=np.int64)
+    preds = []
+    for model in models:
+        model.eval()
+        with torch.no_grad():
+            x = torch.as_tensor(dataset.X_control[idx], dtype=torch.float32)
+            p = torch.as_tensor(pert_idx_all[idx], dtype=torch.long)
+            c = torch.as_tensor(ctx_idx_all[idx], dtype=torch.long)
+            mean, _ = model(x, p, c)
+        preds.append(mean.cpu().numpy())
+    return np.mean(preds, axis=0)
+
+
+def _predict_v1_models(models, dataset: PerturbDataset, idx: np.ndarray, pert_gene_masks: dict, ctx_map: dict) -> np.ndarray:
+    import torch
+
+    ctx_idx_all = np.array([ctx_map[c] for c in dataset.obs["context_id"]], dtype=np.int64)
+    pert_masks = []
+    for pert in dataset.obs["pert_id"]:
+        mask = pert_gene_masks.get(pert)
+        if mask is None:
+            mask = np.zeros(dataset.n_genes, dtype=np.float32)
+        pert_masks.append(mask)
+    pert_masks = np.stack(pert_masks, axis=0).astype(np.float32)
+
+    preds = []
+    for model in models:
+        model.eval()
+        with torch.no_grad():
+            x = torch.as_tensor(dataset.X_control[idx], dtype=torch.float32)
+            p = torch.as_tensor(pert_masks[idx], dtype=torch.float32)
+            c = torch.as_tensor(ctx_idx_all[idx], dtype=torch.long)
+            mean, _ = model(x, p, c)
+        preds.append(mean.cpu().numpy())
+    return np.mean(preds, axis=0)
+
+
+def _predict_v2_models(models, dataset: PerturbDataset, idx: np.ndarray, ctx_map: dict) -> np.ndarray:
+    import torch
+
+    ctx_idx_all = np.array([ctx_map[c] for c in dataset.obs["context_id"]], dtype=np.int64)
+    pert_mask = pert_genes_to_mask(dataset.obs.get("pert_genes", [[] for _ in range(dataset.n_obs)]), dataset.var)
+    preds = []
+    for model in models:
+        model.eval()
+        with torch.no_grad():
+            p = torch.as_tensor(pert_mask[idx], dtype=torch.float32)
+            c = torch.as_tensor(ctx_idx_all[idx], dtype=torch.long)
+            mean, _ = model(p, c)
+        preds.append(mean.cpu().numpy())
+    return np.mean(preds, axis=0)
 
 
 def _require_metrics_complete(metrics: Dict[str, object]) -> None:
@@ -112,9 +197,15 @@ def run_baseline(
     metrics_pb = compute_perturbench_metrics(y_true, preds["mean"], subset.obs)
     ood_labels = subset.obs.get("is_ood") if isinstance(subset.obs, dict) else None
     metrics_unc = compute_uncertainty_metrics(y_true, preds["mean"], preds["var"], ood_labels=ood_labels)
-    if conformal and len(split.val_idx) > 0:
-        residuals = np.abs(subset.delta - preds["mean"])
-        metrics_unc["conformal"] = conformal_intervals(residuals, alphas=[0.5, 0.2, 0.1, 0.05])
+    if conformal:
+        calib_idx, source = _get_calib_idx(split)
+        _assert_no_test_leak(calib_idx, split.test_idx)
+        if calib_idx.size > 0:
+            models = preds.get("models") or [preds.get("model")]
+            mean_calib = _predict_baseline_models(models, ds, calib_idx)
+            residuals = np.abs(ds.delta[calib_idx] - mean_calib)
+            metrics_unc["conformal"] = conformal_intervals(residuals, alphas=[0.5, 0.2, 0.1, 0.05])
+            metrics_unc["calib_info"] = {"size": int(calib_idx.size), "source": source}
 
     metrics = {"scperturbench": metrics_sc, "perturbench": metrics_pb, "uncertainty": metrics_unc}
     _require_metrics_complete(metrics)
@@ -170,9 +261,15 @@ def run_perturbfm_v0(
     metrics_pb = compute_perturbench_metrics(y_true, preds["mean"], subset.obs)
     ood_labels = subset.obs.get("is_ood") if isinstance(subset.obs, dict) else None
     metrics_unc = compute_uncertainty_metrics(y_true, preds["mean"], preds["var"], ood_labels=ood_labels)
-    if conformal and len(split.val_idx) > 0:
-        residuals = np.abs(subset.delta - preds["mean"])
-        metrics_unc["conformal"] = conformal_intervals(residuals, alphas=[0.5, 0.2, 0.1, 0.05])
+    if conformal:
+        calib_idx, source = _get_calib_idx(split)
+        _assert_no_test_leak(calib_idx, split.test_idx)
+        if calib_idx.size > 0:
+            models = preds.get("models") or [preds.get("model")]
+            mean_calib = _predict_v0_models(models, ds, calib_idx, preds["pert_map"], preds["ctx_map"])
+            residuals = np.abs(ds.delta[calib_idx] - mean_calib)
+            metrics_unc["conformal"] = conformal_intervals(residuals, alphas=[0.5, 0.2, 0.1, 0.05])
+            metrics_unc["calib_info"] = {"size": int(calib_idx.size), "source": source}
 
     metrics = {"scperturbench": metrics_sc, "perturbench": metrics_pb, "uncertainty": metrics_unc}
     _require_metrics_complete(metrics)
@@ -229,9 +326,15 @@ def run_perturbfm_v1(
     metrics_pb = compute_perturbench_metrics(y_true, preds["mean"], subset.obs)
     ood_labels = subset.obs.get("is_ood") if isinstance(subset.obs, dict) else None
     metrics_unc = compute_uncertainty_metrics(y_true, preds["mean"], preds["var"], ood_labels=ood_labels)
-    if conformal and len(split.val_idx) > 0:
-        residuals = np.abs(subset.delta - preds["mean"])
-        metrics_unc["conformal"] = conformal_intervals(residuals, alphas=[0.5, 0.2, 0.1, 0.05])
+    if conformal:
+        calib_idx, source = _get_calib_idx(split)
+        _assert_no_test_leak(calib_idx, split.test_idx)
+        if calib_idx.size > 0:
+            models = preds.get("models") or [preds.get("model")]
+            mean_calib = _predict_v1_models(models, ds, calib_idx, pert_gene_masks, preds["ctx_map"])
+            residuals = np.abs(ds.delta[calib_idx] - mean_calib)
+            metrics_unc["conformal"] = conformal_intervals(residuals, alphas=[0.5, 0.2, 0.1, 0.05])
+            metrics_unc["calib_info"] = {"size": int(calib_idx.size), "source": source}
 
     metrics = {"scperturbench": metrics_sc, "perturbench": metrics_pb, "uncertainty": metrics_unc}
     _require_metrics_complete(metrics)
@@ -293,9 +396,15 @@ def run_perturbfm_v2(
     metrics_pb = compute_perturbench_metrics(y_true, preds["mean"], subset.obs)
     ood_labels = subset.obs.get("is_ood") if isinstance(subset.obs, dict) else None
     metrics_unc = compute_uncertainty_metrics(y_true, preds["mean"], preds["var"], ood_labels=ood_labels)
-    if conformal and len(split.val_idx) > 0:
-        residuals = np.abs(subset.delta - preds["mean"])
-        metrics_unc["conformal"] = conformal_intervals(residuals, alphas=[0.5, 0.2, 0.1, 0.05])
+    if conformal:
+        calib_idx, source = _get_calib_idx(split)
+        _assert_no_test_leak(calib_idx, split.test_idx)
+        if calib_idx.size > 0:
+            models = preds.get("models") or [preds.get("model")]
+            mean_calib = _predict_v2_models(models, ds, calib_idx, preds["ctx_map"])
+            residuals = np.abs(ds.delta[calib_idx] - mean_calib)
+            metrics_unc["conformal"] = conformal_intervals(residuals, alphas=[0.5, 0.2, 0.1, 0.05])
+            metrics_unc["calib_info"] = {"size": int(calib_idx.size), "source": source}
 
     metrics = {"scperturbench": metrics_sc, "perturbench": metrics_pb, "uncertainty": metrics_unc}
     _require_metrics_complete(metrics)

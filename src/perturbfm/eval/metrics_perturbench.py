@@ -12,7 +12,10 @@ def _rmse(y_true: np.ndarray, y_pred: np.ndarray) -> float:
 
 
 def _rank_metrics(_y_true: np.ndarray, _y_pred: np.ndarray) -> float:
-    # Spearman rank correlation averaged over samples.
+    """
+    Rank-based metric: mean Spearman correlation of gene ranks per sample.
+    This is a proxy for perturbation ranking fidelity.
+    """
     y_true = _y_true
     y_pred = _y_pred
     if y_true.shape[0] == 0:
@@ -33,9 +36,13 @@ def _rank_metrics(_y_true: np.ndarray, _y_pred: np.ndarray) -> float:
 
 
 def _variance_diagnostics(_y_true: np.ndarray, _y_pred: np.ndarray) -> float:
-    mse = (( _y_true - _y_pred) ** 2).mean()
-    pred_var = _y_pred.var()
-    return float(pred_var - mse)
+    """
+    Collapse diagnostic: ratio of predicted variance to true variance.
+    Values near 1 are healthy; values near 0 indicate collapse.
+    """
+    true_var = _y_true.var(axis=0).mean()
+    pred_var = _y_pred.var(axis=0).mean()
+    return float(pred_var / (true_var + 1e-8))
 
 
 def _aggregate(
@@ -84,7 +91,7 @@ def compute_perturbench_metrics(y_true: np.ndarray, y_pred: np.ndarray, obs: dic
         "per_perturbation": per_pert,
         "per_context": per_context,
         "notes": {
-            "RankMetrics": "TODO: define rank-based metrics.",
-            "VarianceDiagnostics": "TODO: define prediction variance diagnostics.",
+            "RankMetrics": "Mean Spearman correlation of gene ranks per sample.",
+            "VarianceDiagnostics": "Predicted variance / true variance (collapse diagnostic).",
         },
     }

@@ -13,7 +13,7 @@ def test_baseline_pipeline(tmp_path, monkeypatch):
     ds = make_synthetic_dataset(n_obs=50, n_genes=8, n_contexts=3, seed=0)
     ds.save_artifact(data_dir)
 
-    split = context_ood_split(ds.obs["context_id"], ["C0"], seed=0, val_fraction=0.2)
+    split = context_ood_split(ds.obs["context_id"], ["C0"], obs_perts=ds.obs["pert_id"], seed=0, val_fraction=0.2)
     split.freeze()
     split_store_dir = tmp_path / "splits"
     store = SplitStore(root=split_store_dir)

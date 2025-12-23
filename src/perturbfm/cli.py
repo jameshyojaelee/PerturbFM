@@ -115,6 +115,7 @@ def _add_train(subparsers: argparse._SubParsersAction) -> None:
     v1.add_argument("--device", default="cpu")
     v1.add_argument("--no-graph", action="store_true")
     v1.add_argument("--no-gating", action="store_true")
+    v1.add_argument("--gating-mode", choices=["none", "scalar", "node", "lowrank", "mlp"], default=None)
     v1.add_argument("--ensemble-size", type=int, default=1)
     v1.add_argument("--conformal", action="store_true")
     v1.add_argument("--out", default=None, help="Optional output run directory.")
@@ -131,6 +132,7 @@ def _add_train(subparsers: argparse._SubParsersAction) -> None:
     v2.add_argument("--no-contextual-operator", action="store_true")
     v2.add_argument("--num-bases", type=int, default=4)
     v2.add_argument("--adjacency", action="append", default=None, help="Path to .npz with key 'adjacency' (may be provided multiple times for multi-graph).")
+    v2.add_argument("--gating-mode", choices=["none", "scalar", "node", "lowrank", "mlp"], default=None)
     v2.add_argument("--ensemble-size", type=int, default=1)
     v2.add_argument("--conformal", action="store_true")
     v2.add_argument("--out", default=None, help="Optional output run directory.")
@@ -217,7 +219,14 @@ def _cmd_splits_create(args: argparse.Namespace) -> int:
     if args.spec == "context_ood":
         if not args.holdout_contexts:
             raise ValueError("holdout contexts required")
-        split = context_ood_split(ds.obs["context_id"], args.holdout_contexts, seed=args.seed, val_fraction=args.val_frac)
+        split = context_ood_split(
+            ds.obs["context_id"],
+            args.holdout_contexts,
+            obs_perts=ds.obs["pert_id"],
+            seed=args.seed,
+            val_fraction=args.val_frac,
+            require_shared_perturbations=True,
+        )
     elif args.spec == "perturbation_ood":
         if not args.holdout_perts:
             raise ValueError("holdout perturbations required")
@@ -321,6 +330,7 @@ def _cmd_train_perturbfm_v1(args: argparse.Namespace) -> int:
         device=args.device,
         use_graph=not args.no_graph,
         use_gating=not args.no_gating,
+        gating_mode=args.gating_mode,
         ensemble_size=args.ensemble_size,
         conformal=args.conformal,
     )
@@ -349,6 +359,7 @@ def _cmd_train_perturbfm_v2(args: argparse.Namespace) -> int:
         epochs=args.epochs,
         device=args.device,
         use_gating=not args.no_gating,
+        gating_mode=args.gating_mode,
         contextual_operator=not args.no_contextual_operator,
         num_bases=args.num_bases,
         ensemble_size=args.ensemble_size,

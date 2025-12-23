@@ -7,8 +7,8 @@ def test_cgio_graphpropagator_zero_gate_uses_residual():
 
     g = 4
     adj = torch.ones((g, g))
-    prop = GraphPropagator([adj], hidden_dim=8, use_gating=True)
-    prop.gates[0].data.fill_(-20.0)
+    prop = GraphPropagator([adj], hidden_dim=8, use_gating=True, gating_mode="scalar")
+    prop.gate_scalars[0].data.fill_(-20.0)
     pert_mask = torch.zeros((2, g))
     pert_mask[0, 0] = 1.0
     ctx = torch.zeros((2, 8))
