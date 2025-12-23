@@ -1,4 +1,4 @@
-"""scPerturBench metric panel."""
+"""scPerturBench metric panel with scalable defaults."""
 
 from __future__ import annotations
 
@@ -20,40 +20,60 @@ def _pcc_delta(y_true: np.ndarray, y_pred: np.ndarray) -> float:
         return float("nan")
     return float(np.corrcoef(y_true, y_pred)[0, 1])
 
+def _mean_l2_distance(
+    a: np.ndarray, b: np.ndarray, max_pairs: int, rng: np.random.Generator
+) -> float:
+    if a.shape[0] == 0 or b.shape[0] == 0:
+        return float("nan")
+    total_pairs = a.shape[0] * b.shape[0]
+    if total_pairs <= max_pairs:
+        diffs = a[:, None, :] - b[None, :, :]
+        return float(np.sqrt((diffs**2).sum(axis=2)).mean())
+    idx_a = rng.integers(0, a.shape[0], size=max_pairs)
+    idx_b = rng.integers(0, b.shape[0], size=max_pairs)
+    diffs = a[idx_a] - b[idx_b]
+    return float(np.sqrt((diffs**2).sum(axis=1)).mean())
 
-def _energy_distance(_y_true: np.ndarray, _y_pred: np.ndarray, max_n: int = 200, seed: int = 0) -> float:
+
+def _energy_distance(_y_true: np.ndarray, _y_pred: np.ndarray, max_pairs: int = 20000, seed: int = 0) -> float:
     """
     Energy distance between two multivariate samples.
-    Scalable default: subsample to at most max_n points per set.
+
+    Computed as 2 E||X-Y|| - E||X-X'|| - E||Y-Y'|| with pair sampling to avoid O(n^2).
     """
     rng = np.random.default_rng(seed)
     x = _y_true.reshape(_y_true.shape[0], -1)
     y = _y_pred.reshape(_y_pred.shape[0], -1)
-    if x.shape[0] > max_n:
-        x = x[rng.choice(x.shape[0], size=max_n, replace=False)]
-    if y.shape[0] > max_n:
-        y = y[rng.choice(y.shape[0], size=max_n, replace=False)]
-    dx = np.sqrt(((x[:, None, :] - x[None, :, :]) ** 2).sum(axis=2))
-    dy = np.sqrt(((y[:, None, :] - y[None, :, :]) ** 2).sum(axis=2))
-    dxy = np.sqrt(((x[:, None, :] - y[None, :, :]) ** 2).sum(axis=2))
-    term = 2.0 * dxy.mean() - dx.mean() - dy.mean()
-    return float(term)
+    dxy = _mean_l2_distance(x, y, max_pairs, rng)
+    dxx = _mean_l2_distance(x, x, max_pairs, rng)
+    dyy = _mean_l2_distance(y, y, max_pairs, rng)
+    return float(2.0 * dxy - dxx - dyy)
 
 
-def _wasserstein_distance(_y_true: np.ndarray, _y_pred: np.ndarray) -> float:
+def _wasserstein_distance(
+    _y_true: np.ndarray,
+    _y_pred: np.ndarray,
+    n_projections: int = 16,
+    n_quantiles: int = 101,
+    seed: int = 0,
+) -> float:
     """
-    Approximate per-gene 1D Wasserstein by fixed quantile matching and average across genes.
-    This is a scalable proxy for multivariate Wasserstein without external deps.
+    Sliced Wasserstein approximation using random projections and quantile matching.
     """
-    x = _y_true
-    y = _y_pred
+    x = _y_true.reshape(_y_true.shape[0], -1)
+    y = _y_pred.reshape(_y_pred.shape[0], -1)
     if x.shape[0] == 0 or y.shape[0] == 0:
         return float("nan")
-    qs = np.linspace(0, 100, num=51)
+    rng = np.random.default_rng(seed)
+    qs = np.linspace(0, 100, num=n_quantiles)
     dists = []
-    for g in range(x.shape[1]):
-        qx = np.percentile(x[:, g], qs)
-        qy = np.percentile(y[:, g], qs)
+    for _ in range(n_projections):
+        v = rng.normal(size=x.shape[1])
+        v /= np.linalg.norm(v) + 1e-8
+        px = x @ v
+        py = y @ v
+        qx = np.percentile(px, qs)
+        qy = np.percentile(py, qs)
         dists.append(np.mean(np.abs(qx - qy)))
     return float(np.mean(dists))
 
@@ -70,15 +90,16 @@ def _kl_divergence(_y_true: np.ndarray, _y_pred: np.ndarray) -> float:
     kl = 0.5 * np.sum(np.log(var_q / var_p) + (var_p + (mu_p - mu_q) ** 2) / var_q - 1)
     return float(kl / _y_true.shape[1])
 
-
 def _common_degs(_y_true: np.ndarray, _y_pred: np.ndarray, k: int = 100) -> float:
     """
-    Common-DEGs: overlap of top-k genes ranked by |mean delta|.
+    Common-DEGs: overlap of top-k genes ranked by |effect size| (mean / std).
     Deterministic and scale-friendly.
     """
     k = min(k, _y_true.shape[1])
-    true_rank = np.argsort(-np.abs(_y_true).mean(axis=0))[:k]
-    pred_rank = np.argsort(-np.abs(_y_pred).mean(axis=0))[:k]
+    true_score = np.abs(_y_true.mean(axis=0)) / (_y_true.std(axis=0) + 1e-8)
+    pred_score = np.abs(_y_pred.mean(axis=0)) / (_y_pred.std(axis=0) + 1e-8)
+    true_rank = np.argsort(-true_score)[:k]
+    pred_rank = np.argsort(-pred_score)[:k]
     overlap = len(set(true_rank.tolist()) & set(pred_rank.tolist()))
     return float(overlap / k) if k > 0 else float("nan")
 
@@ -104,6 +125,12 @@ def _aggregate(
 
 
 def compute_scperturbench_metrics(y_true: np.ndarray, y_pred: np.ndarray, obs: dict) -> Dict[str, object]:
+    """
+    Compute scPerturBench-style metrics with scalable approximations.
+
+    Metrics include MSE, PCC_delta, Energy (sampled), Wasserstein (sliced), KL (diag Gaussian),
+    and Common_DEGs (top-k overlap by effect size). Aggregates are reported globally and per group.
+    """
     metrics_fns = {
         "MSE": _mse,
         "PCC_delta": _pcc_delta,
@@ -132,9 +159,9 @@ def compute_scperturbench_metrics(y_true: np.ndarray, y_pred: np.ndarray, obs: d
         "per_perturbation": per_pert,
         "per_context": per_context,
         "notes": {
-            "Energy": "Subsampled energy distance (max_n=200).",
-            "Wasserstein": "Per-gene quantile matching approximation.",
-            "KL": "Diagonal Gaussian assumption.",
-            "Common_DEGs": "Top-k overlap by |mean delta|.",
+            "Energy": "Energy distance with pair sampling (max_pairs=20000).",
+            "Wasserstein": "Sliced Wasserstein via random projections + quantile matching.",
+            "KL": "Diagonal Gaussian assumption (gene-wise independence).",
+            "Common_DEGs": "Top-k overlap by |mean/std| effect size.",
         },
     }

@@ -27,7 +27,7 @@ Result (2025‑12‑23):
   - conformal intervals currently computed on **test** subset
 - **scPerturBench metrics**: `src/perturbfm/eval/metrics_scperturbench.py`
   - MSE, PCC, Energy, Wasserstein, KL, Common‑DEGs
-  - Energy uses O(n²) pairwise distances; Common‑DEGs is placeholder overlap@100
+  - Energy uses pair sampling (bounded); Wasserstein is sliced via random projections; Common‑DEGs uses |mean/std| effect sizes
 - **PerturBench metrics**: `src/perturbfm/eval/metrics_perturbench.py`
   - RMSE, RankMetrics (Spearman proxy), VarianceDiagnostics (pred_var – MSE)
   - notes still mark RankMetrics/VarianceDiagnostics as TODO for parity
@@ -69,11 +69,11 @@ E) **Graph adjacency + gating are dense (won’t scale)** — **fixed**
   - `src/perturbfm/models/perturbfm/cgio.py` (lines 9–36)
 - Impact: O(G²) memory/time
 
-F) **scPerturBench metrics include placeholder + O(n²)** — **partially fixed**
+F) **scPerturBench metrics include placeholder + O(n²)** — **fixed**
 - File: `src/perturbfm/eval/metrics_scperturbench.py`
-- Lines: 22–31 (energy O(n²)), 59–65 (Common‑DEGs placeholder)
+- Lines: 22–50 (energy sampled), 66–78 (Common‑DEGs effect size)
 - Impact: scalability + parity risk
- - Current: energy uses subsampling, Common‑DEGs is deterministic; still needs parity validation vs reference.
+ - Current: scalable defaults (pair-sampled energy, sliced Wasserstein, effect-size DEGs) + parity harness in `scripts/validate_metrics.py`; still needs external reference to confirm official parity.
 
 G) **PerturBench rank metrics not parity with official** — **partially fixed**
 - File: `src/perturbfm/eval/metrics_perturbench.py`
@@ -109,8 +109,8 @@ I) **`pyproject.toml` lacks bench extras** — **fixed**
 ### P1 (needed for parity + scalability)
 5) **scPerturBench metric parity + scalable implementations**  
    - File: `metrics_scperturbench.py`, `scripts/validate_metrics.py`  
-   - Current: scalable defaults implemented (subsampled energy, quantile Wasserstein) but must be validated vs reference.  
-   - Acceptance: parity checks within tolerance.
+   - Current: pair-sampled energy + sliced Wasserstein + effect-size Common‑DEGs; parity harness compares against reference JSON or external scripts.  
+   - Acceptance: parity checks within tolerance when reference available.
 6) **PerturBench rank/collapse metrics parity**  
    - File: `metrics_perturbench.py`  
    - Current: Spearman proxy + variance ratio; still requires parity check.  

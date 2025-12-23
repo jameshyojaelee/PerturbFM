@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import json
 import subprocess
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -52,6 +53,39 @@ def maybe_run_external(tool_dir: Path, cmd: list[str]) -> dict | None:
         return None
 
 
+def _extract_panel(ref: dict, panel: str) -> dict | None:
+    if panel in ref:
+        return ref.get(panel)
+    if "global" in ref:
+        return ref
+    return None
+
+
+def compare_globals(ours: dict, ref: dict, panel: str, tol: float) -> bool:
+    ours_panel = _extract_panel(ours, panel)
+    ref_panel = _extract_panel(ref, panel)
+    if ours_panel is None or ref_panel is None:
+        print(f"[warn] missing panel {panel} for comparison")
+        return False
+    ours_global = ours_panel.get("global", ours_panel)
+    ref_global = ref_panel.get("global", ref_panel)
+    ok = True
+    for key, val in ours_global.items():
+        ref_val = ref_global.get(key)
+        if ref_val is None:
+            print(f"[warn] reference missing {panel}.global.{key}")
+            ok = False
+            continue
+        if np.isnan(val) and np.isnan(ref_val):
+            continue
+        if abs(ref_val - val) > tol:
+            print(f"[fail] {panel}.global.{key}: ours={val:.6f} ref={ref_val:.6f}")
+            ok = False
+    if ok:
+        print(f"[ok] {panel} comparison within tolerance")
+    return ok
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--data", required=True, help="Path to dataset artifact directory")
@@ -66,23 +100,15 @@ def main():
     ours = run_internal(data_path, preds_path)
     print("=== PerturbFM metrics ===")
     print(stable_json_dumps(ours))
+    exit_code = 0
 
     # Optional reference comparison
     if args.reference_json:
         ref = json.loads(Path(args.reference_json).read_text())
-        ok = True
-        for panel in ("scperturbench", "perturbench"):
-            for key, val in ours[panel]["global"].items():
-                ref_val = ref.get(panel, {}).get("global", {}).get(key)
-                if ref_val is None:
-                    print(f"[warn] reference missing {panel}.global.{key}")
-                    ok = False
-                    continue
-                if abs(ref_val - val) > args.tol:
-                    print(f"[fail] {panel}.global.{key}: ours={val:.6f} ref={ref_val:.6f}")
-                    ok = False
-        if ok:
-            print("[ok] reference comparison within tolerance")
+        ok_sc = compare_globals(ours, ref, "scperturbench", args.tol)
+        ok_pb = compare_globals(ours, ref, "perturbench", args.tol)
+        if not (ok_sc and ok_pb):
+            exit_code = 1
 
     # Optional external comparisons (expected to be implemented by user locally)
     scpb = maybe_run_external(
@@ -92,6 +118,10 @@ def main():
     if scpb:
         print("=== scPerturBench reference metrics ===")
         print(json.dumps(scpb, indent=2))
+        if not compare_globals(ours, scpb, "scperturbench", args.tol):
+            exit_code = 1
+    else:
+        print("[info] scPerturBench reference repo not found; skipping external comparison")
 
     pb = maybe_run_external(
         Path("third_party/PerturBench"),
@@ -100,6 +130,13 @@ def main():
     if pb:
         print("=== PerturBench reference metrics ===")
         print(json.dumps(pb, indent=2))
+        if not compare_globals(ours, pb, "perturbench", args.tol):
+            exit_code = 1
+    else:
+        print("[info] PerturBench reference repo not found; skipping external comparison")
+
+    if exit_code != 0:
+        sys.exit(exit_code)
 
 
 if __name__ == "__main__":
