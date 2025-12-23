@@ -20,6 +20,8 @@ class GraphPropagator(nn.Module):
     def forward(self, pert_mask: torch.Tensor, ctx_emb: torch.Tensor) -> torch.Tensor:
         # pert_mask: [B, G]; ctx_emb: [B, d]
         h0 = self.lin(pert_mask.unsqueeze(-1))  # [B, G, d]
+        # Residual: pooled intervention signal before graph propagation.
+        residual = h0.mean(dim=1)
         h_list = []
         for i, adj in enumerate(self.adjacencies):
             a = adj

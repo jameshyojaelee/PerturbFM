@@ -234,6 +234,7 @@ def run_perturbfm_v1(
         metrics_unc["conformal"] = conformal_intervals(residuals, alphas=[0.5, 0.2, 0.1, 0.05])
 
     metrics = {"scperturbench": metrics_sc, "perturbench": metrics_pb, "uncertainty": metrics_unc}
+    _require_metrics_complete(metrics)
     _write_json(run_dir / "metrics.json", metrics)
     _write_json(run_dir / "calibration.json", metrics_unc)
 

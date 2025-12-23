@@ -26,3 +26,38 @@ def test_require_metrics_complete_ok():
         "uncertainty": {"coverage": {}, "nll": 0, "risk_coverage": {}, "ood_auroc": None},
     }
     _require_metrics_complete(metrics)
+
+
+def test_v1_enforces_metric_completeness(monkeypatch, tmp_path):
+    import numpy as np
+
+    from perturbfm.data.registry import make_synthetic_dataset
+    from perturbfm.data.splits.split_spec import context_ood_split
+    from perturbfm.data.splits.split_store import SplitStore
+    from perturbfm.eval import evaluator
+
+    ds = make_synthetic_dataset(n_obs=20, n_genes=6, seed=1)
+    data_dir = tmp_path / "data"
+    ds.save_artifact(data_dir)
+    split = context_ood_split(ds.obs["context_id"], ["C0"], seed=0).freeze()
+    store = SplitStore(root=tmp_path / "splits")
+    store.save(split)
+    monkeypatch.setenv("PERTURBFM_SPLIT_DIR", str(tmp_path / "splits"))
+
+    # patch metrics to be incomplete
+    monkeypatch.setattr(evaluator, "compute_scperturbench_metrics", lambda *a, **k: {"global": {"MSE": 0.0}})
+    monkeypatch.setattr(evaluator, "compute_perturbench_metrics", lambda *a, **k: {"global": {"RMSE": 0.0}})
+    monkeypatch.setattr(evaluator, "compute_uncertainty_metrics", lambda *a, **k: {"coverage": {}, "nll": 0.0, "risk_coverage": {}, "ood_auroc": None})
+
+    adj = np.eye(ds.n_genes, dtype=np.float32)
+    pert_gene_masks = {pid: np.zeros(ds.n_genes, dtype=np.float32) for pid in set(ds.obs["pert_id"])}
+
+    with pytest.raises(ValueError):
+        evaluator.run_perturbfm_v1(
+            data_path=str(data_dir),
+            split_hash=split.frozen_hash,
+            adjacency=adj,
+            pert_gene_masks=pert_gene_masks,
+            epochs=1,
+            hidden_dim=8,
+        )
