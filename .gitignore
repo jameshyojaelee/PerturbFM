@@ -11,6 +11,7 @@ env/
 .DS_Store
 build/
 dist/
+data/
 *.egg-info/
 
 runs/
