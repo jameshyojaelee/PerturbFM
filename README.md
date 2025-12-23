@@ -1,11 +1,13 @@
 # PerturbFM
 
-Perturbation response prediction with **immutable OOD splits**, **full metric panels**, and **calibrated uncertainty**.
+Perturbation response prediction with **immutable OOD splits**, **full metric panels**, and **calibrated uncertainty**
 
-This repo is deliberately opinionated: it tries to make “fake wins” hard by baking evaluation rigor into the tooling.
+Perturbation modeling is one of those areas where it’s easy to get impressive numbers for the wrong reasons: split drift, silent leakage, cherry-picked metrics, or evaluation scripts that don’t match the benchmark’s intent. This repository is designed to prevent those failure modes by making rigor the default.
 
-- Architecture + hard rules: `docs/project_overview.md`
-- Literature + competitive positioning: `references.md`
+The goal of this work is not “just another model.” It’s a workflow that turns your experiments into artifacts you can stand behind: frozen splits, complete metric panels, calibrated uncertainty, and provenance-rich run outputs — so when a result looks good, you can trust it (and reproduce it later).
+
+- Project overview + hard rules: see “Project overview (detailed)” below
+- Literature + competitive positioning: `docs/references.md`
 - Roadmap + execution tracker: `docs/prompts.md`
 
 ## What’s in the repo right now
@@ -87,7 +89,7 @@ If you can’t see the image above for some reason, read it as:
   - `eval/`: metrics, evaluator, report
 - `utils/`: hashing, logging, seeding
 - `scripts/`: helpers (metrics parity, export predictions, external benchmark stubs)
-- `docs/`: planning docs + execution tracker (including `project_overview.md`, `prompts.md`)
+- `docs/`: planning docs + execution tracker (including `prompts.md`)
 - `progress/`: progress log + decision log
 - `tests/`: unit + smoke tests
 - `runs/`: run artifacts (gitignored)
@@ -356,7 +358,6 @@ perturbfm/
     LOG.md
     DECISIONS.md
   docs/
-    project_overview.md
     prompts.md
 
   src/perturbfm/
