@@ -1,6 +1,6 @@
 # Dev TODO (PerturbFM)
 
-This file is the internal fix list derived from `prompts.md` MEGA‑PROMPT 1.
+This file is the internal fix list derived from `docs/prompts.md` MEGA‑PROMPT 1.
 
 ## Pre‑change test run
 
