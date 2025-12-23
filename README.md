@@ -6,10 +6,6 @@ Perturbation modeling is one of those areas where it’s easy to get impressive 
 
 The goal of this work is not “just another model.” It’s a workflow that turns your experiments into artifacts you can stand behind: frozen splits, complete metric panels, calibrated uncertainty, and provenance-rich run outputs — so when a result looks good, you can trust it (and reproduce it later).
 
-- Project overview + hard rules: see “Project overview (detailed)” below
-- Literature + competitive positioning: `docs/references.md`
-- Roadmap + execution tracker: `docs/prompts.md`
-
 ## What’s in the repo right now
 
 Core pieces (working):
