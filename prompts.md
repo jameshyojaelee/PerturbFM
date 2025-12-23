@@ -1,275 +1,363 @@
-# Codex Mega-Prompts — PerturbFM roadmap (post-bootstrap)
+# Codex Mega-Prompts — PerturbFM roadmap
 
-Copy/paste these prompts into Codex **in order**. These are designed to follow the updated direction in:
+MEGA-PROMPT 1: Establish ground truth and create a fix plan inside the repo
+=========================================================================
 
-- `project_overview.md` (see v2 CGIO spec in section 8.4)
-- `current_state.md` (exec summary + capability matrix)
-- `README.md` (current repo status + known gaps)
+You are working in the PerturbFM repository.
 
-Assumption: the repo scaffold + baseline v0/v1 code already exists (i.e., the “bootstrap” is done). These prompts focus on what’s still needed for credible benchmarking + a novel model.
+Task:
+1) Read and summarize the current repository structure and key modules involved in:
+   - splits: src/perturbfm/data/splits/
+   - evaluator: src/perturbfm/eval/evaluator.py
+   - scPerturBench metrics: src/perturbfm/eval/metrics_scperturbench.py
+   - PerturBench metrics: src/perturbfm/eval/metrics_perturbench.py
+   - CGIO: src/perturbfm/models/perturbfm/cgio.py
+   - graph encoder: src/perturbfm/models/perturbfm/perturb_encoder.py and gene_graph.py
 
----
+2) Confirm the following suspected issues by locating exact lines and writing a brief “issue record” for each:
+   A) CGIO GraphPropagator references an undefined variable `residual` in forward()
+   B) conformal intervals are computed using test residuals (test leakage) in evaluator.py
+   C) context_ood_split does not enforce that pert_id coverage is shared across train/test
+   D) run_perturbfm_v1 does not call the same metric completeness guard as other runners
+   E) graph adjacency + gating are dense and will not scale to realistic gene counts
+   F) scPerturBench metrics contain placeholders and at least one O(n^2) implementation (energy distance)
+   G) PerturBench rank metrics are placeholders / not parity with PerturBench definitions
+   H) README references a missing file (if true)
+   I) pyproject lacks “bench” extras though adapter suggests installing extras
 
-## Prompt 0 — Preflight: repo health + test runner + invariants
+3) Create a repo-internal checklist file:
+   - docs/dev_todo.md
+   It must include:
+   - a numbered list of fixes in P0/P1/P2 order
+   - file paths
+   - acceptance tests for each item
+   - explicit “do not do” constraints (no test leakage, no GPL vendoring)
 
-```text
-You are an agentic coding assistant working inside the `PerturbFM` repo.
+4) Run tests before changes:
+   - PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q
+   Record results in docs/dev_todo.md.
 
-Read first
-- `project_overview.md` (hard rules + v2 CGIO spec)
-- `current_state.md` (failure modes + what “superior” means)
-- `README.md` (known gaps)
+Output:
+- Provide the created docs/dev_todo.md contents.
+- Provide a short “next recommended prompt number” suggestion (just a number).
 
-Goal
-- Make it easy to run a reliable “repo health” check in diverse environments.
-- Enforce key invariants early (no silent split regen, no partial metric reporting).
 
-Scope
-1) Add a `scripts/check.sh` (or Makefile target) that runs:
-   - import smoke (`python -c "import perturbfm; print('ok')"`)
-   - CLI smoke (`perturbfm --help`)
-   - unit tests (see #2)
-2) Some environments crash running `pytest` due to plugin autoload / SSL issues (e.g., `ImportError: libssl.so.1.1` via third-party plugins).
-   - Add a safe default test command that sets `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`.
-   - Document this in `README.md` (short).
-3) Add “invariant assertions” tests:
-   - Split store refuses overwrite with mismatched content.
-   - Evaluator refuses to write `metrics.json` if required metric keys are missing (no partial panels).
+MEGA-PROMPT 2: Fix CGIO undefined variable bug + add a regression test
+====================================================================
 
-Constraints
-- Do not add heavy dependencies.
-- Keep changes small and targeted.
+You are working in PerturbFM.
 
-Verification
-- Run `scripts/check.sh` (or your new Makefile target).
-```
+Goal:
+Fix the CGIO GraphPropagator runtime bug where `residual` is referenced but undefined.
 
----
+Scope:
+- src/perturbfm/models/perturbfm/cgio.py
+- tests/ (add a targeted unit test)
 
-## Prompt 1 — Metrics: implement exact definitions + numerical parity harness
+Requirements:
+1) Locate the code path:
+   if torch.max(torch.abs(a)) < 1e-6:
+       h_list.append(residual)
+       continue
+   Determine intended behavior and implement a correct replacement variable (likely the incoming h tensor or a residual connection tensor). Document the decision in an inline comment.
 
-```text
-You are an agentic coding assistant working inside the `PerturbFM` repo.
+2) Add a unit test that deterministically triggers that branch.
+   - Construct a GraphPropagator instance with adjacency weights that become ~0 (or force gating to zero).
+   - Ensure the forward pass completes and output shape is correct.
 
-Hard rules (do not violate)
-- No single-metric reporting: scPerturBench panel and PerturBench panel must be emitted together; missing metrics must fail the run, not silently write NaNs.
-- Licensing isolation: scPerturBench is external-only; do NOT vendor GPL code.
+3) Ensure you do NOT change public APIs.
 
-Goal
-- Replace TODO/NaN metric placeholders with correct implementations OR (if definition is ambiguous) lock them behind a validation harness that compares to official reference scripts in `third_party/`.
-- Add a numerical parity harness that can be run locally when reference repos are present.
+Acceptance:
+- PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q passes
+- The new test fails on old code and passes after the fix.
 
-Scope
-1) Implement scPerturBench metric panel in `src/perturbfm/eval/metrics_scperturbench.py`:
-   - MSE (already), PCC-delta (already)
-   - Energy distance, Wasserstein distance, KL divergence, Common-DEGs
-   - Aggregations: per perturbation, per context, global weighted mean
-2) Implement PerturBench metric panel in `src/perturbfm/eval/metrics_perturbench.py`:
-   - RMSE (already)
-   - Rank-based metrics (collapse-sensitive)
-   - Prediction variance diagnostics + collapse diagnostics
-3) Implement / extend uncertainty metrics in `src/perturbfm/eval/uncertainty_metrics.py`:
-   - coverage vs nominal (50/80/90/95%)
-   - NLL
-   - risk–coverage curves (already roughly present; verify definition)
-   - OOD AUROC (must accept explicit ood_labels)
-4) Add `scripts/validate_metrics.py` that:
-   - loads a dataset artifact + a predictions artifact
-   - computes metrics using PerturbFM code
-   - if `third_party/scPerturBench` or `third_party/PerturBench` exists, runs their official metric scripts (as a subprocess) on the same inputs
-   - compares results and fails if mismatch > tolerance
-   - IMPORTANT: this script may *execute* external code but must not copy/vend it into `src/perturbfm/`.
-5) Enforce “no partial panels”:
-   - evaluator must refuse to write `metrics.json` unless all required keys exist.
-   - If a metric is still unimplemented, it must raise a clear error telling the user to run `scripts/validate_metrics.py` after cloning the benchmark.
+Output:
+- Show the diff for cgio.py and the new test file.
+- Show pytest output summary.
 
-Dependencies
-- Ask before adding SciPy/POT/scanpy/etc. Prefer numpy/torch implementations where feasible.
 
-Verification
-- Run the unit tests.
-- Create a synthetic dataset + run a baseline; confirm evaluator now fails loudly if any required metrics are missing.
-```
+MEGA-PROMPT 3: Enforce metric completeness for v1 runs
+=====================================================
 
----
+You are working in PerturbFM.
 
-## Prompt 2 — Benchmark adapters: PerturBench real loader + official splits (no silent regen)
+Goal:
+Ensure run_perturbfm_v1 enforces metric completeness the same way as other runners.
 
-```text
-You are an agentic coding assistant working inside the `PerturbFM` repo.
+Scope:
+- src/perturbfm/eval/evaluator.py
+- tests/ (add or update tests)
 
-Hard rules
-- OOD splits are immutable artifacts: import official splits where available; log and store split hashes; never silently regenerate.
-- Licensing isolation: scPerturBench remains external-only.
+Requirements:
+1) Identify how `_require_metrics_complete(metrics)` is used in:
+   - run_baseline
+   - run_perturbfm_v0
+   - run_perturbfm_v2
+   Then apply the same enforcement to run_perturbfm_v1.
 
-Goal
-- Implement a real PerturBench adapter that loads canonical data and imports official splits when available.
+2) Add a test that:
+   - monkeypatches metrics computation to return an incomplete dict
+   - confirms v1 raises the same error / exception as v0/v2.
 
-Scope
-1) `src/perturbfm/data/adapters/perturbench.py`
-   - Implement `PerturBenchAdapter.load(...)` to load real PerturBench datasets (AnnData / torch datasets).
-   - Map into `PerturbDataset` including `obs` fields and `var`.
-   - Support covariates (dose/time/etc.) via `obs["covariates"]` dict.
-2) Official splits
-   - If PerturBench provides official splits, implement `load_official_splits()` to import them.
-   - Convert them into `Split` artifacts and store them in the split store.
-   - Ensure the split hash is deterministic and logged.
-3) CLI
-   - Add `perturbfm data import-perturbench --dataset <name> --out <dir>` to write a `PerturbDataset` artifact.
-   - Add `perturbfm splits import-perturbench --dataset <name>` to import/store official splits.
+Acceptance:
+- pytest passes
+- the test fails on previous behavior if v1 previously skipped the guard.
 
-Dependencies
-- Ask before adding scanpy/anndata. If you do add them, make them optional extras (e.g. `pip install -e .[bench]`) and keep core install lightweight.
+Output:
+- Provide diff and pytest summary.
 
-Verification
-- Add adapter unit tests that run when the benchmark is not present (skip with a clear message).
-- Add a smoke path that works with a small local artifact.
-```
 
----
+MEGA-PROMPT 4: Remove conformal calibration leakage (introduce calibration split)
+================================================================================
 
-## Prompt 3 — Split specs expansion (LOCO CV, covariate transfer, combo generalization)
+You are working in PerturbFM.
 
-```text
-You are an agentic coding assistant working inside the `PerturbFM` repo.
+Goal:
+Eliminate test leakage: conformal calibration residuals must be computed on a held-out calibration set (not test).
 
-Hard rules
-- Splits must be hash-locked and stored; do not allow implicit regeneration in training/eval.
+Scope:
+- src/perturbfm/data/splits/ (extend split object/spec)
+- src/perturbfm/eval/evaluator.py
+- src/perturbfm/models/uncertainty/conformal.py (if needed)
+- tests/test_uncertainty.py (or create)
 
-Goal
-- Expand split specs beyond Context-OOD so claims match benchmarks and stress tests.
+Design constraints:
+- Keep behavior backward-compatible where possible.
+- If a split does not define calib_idx, derive it deterministically from val_idx (for example, first 50% of val by stable RNG with seed and split hash).
+- Never use test_idx to compute conformal quantiles.
 
-Scope
-1) Add split generators in `src/perturbfm/data/splits/`:
-   - leave-one-context-out CV (generator yielding splits)
-   - perturbation-OOD split (hold out perturbations)
-   - combo generalization split (hold out perturbation combinations)
-   - covariate transfer split (dose/time bucket held-out, if covariates exist)
-2) CLI updates
-   - Extend `perturbfm splits create` to support these specs and store the resulting frozen split.
-   - Ensure `perturbfm train ...` and `perturbfm eval ...` require split hash and fail if not found.
-3) Tests
-   - Add unit tests verifying each generator produces disjoint indices and consistent hashing.
+Implementation steps:
+1) Extend the split data structure to include calib_idx (optional but preferred).
+2) Update split creation utilities to populate calib_idx when making splits.
+3) Update evaluator:
+   - compute conformal residuals using calib subset only
+   - store calibration metadata showing which indices were used
+   - apply intervals to test predictions
+4) Add tests:
+   - ensure residual quantiles are computed from calib_idx only
+   - include a “guard” test: if code attempts to use test_idx for calibration, it fails
 
-Verification
-- Unit tests.
-- Synthetic dataset smoke.
-```
+Acceptance:
+- pytest passes
+- calibration.json records calib_idx size and provenance
+- no test leakage
 
----
+Output:
+- Diff summary
+- Explain the calibration split derivation in 5-10 lines (in a comment or docs/dev_todo.md update)
 
-## Prompt 4 — Uncertainty contract: ensembles + conformal + calibration outputs
 
-```text
-You are an agentic coding assistant working inside the `PerturbFM` repo.
+MEGA-PROMPT 5: Make Context-OOD split valid for the headline claim
+=================================================================
 
-Goal
-- Turn “uncertainty” into a first-class deliverable, per `current_state.md` and `project_overview.md`.
-- Implement a concrete contract and ensure evaluator/report always emits it.
+You are working in PerturbFM.
 
-Hard rules
-- Calibration must be evaluated; uncertainty must separate OOD from IID empirically (when labels/splits exist).
+Goal:
+For the headline claim “OOD generalization across cellular contexts,” the Context-OOD split must ensure perturbations are shared across train and test. If not, the split must:
+- either fail fast
+- or explicitly label the split as “mixed OOD” and optionally filter to shared perturbations
 
-Scope
-1) Implement:
-   - `src/perturbfm/models/uncertainty/calibration.py`: calibration utilities (ECE-like bins, coverage tables, reliability plots data)
-   - `src/perturbfm/models/uncertainty/conformal.py`: conformal intervals for per-gene regression (start with split conformal on residuals)
-   - Extend `src/perturbfm/models/uncertainty/ensembles.py` to support training K models and aggregating predictions.
-2) Evaluation outputs
-   - Ensure `calibration.json` always contains:
-     - coverage@{50,80,90,95}
-     - NLL
-     - risk–coverage curve points
-     - OOD AUROC (when `ood_labels` exist)
-3) CLI
-   - Add flags for ensemble size and optional conformal calibration.
-4) Tests
-   - Deterministic unit tests for conformal coverage on synthetic noise.
+Scope:
+- src/perturbfm/data/splits/split_spec.py
+- src/perturbfm/data/splits/split_store.py (if required)
+- tests/test_splits.py
 
-Dependencies
-- Avoid heavy deps; implement with numpy/torch.
+Requirements:
+1) Modify context_ood_split to accept a flag:
+   require_shared_perturbations: bool = True (default True for the claim path)
+2) Implement checks:
+   - pert_id_test ⊆ pert_id_train must hold; otherwise:
+     Option A (recommended): filter test rows to shared perturbations, and record a warning field in split metadata
+     Option B: raise ValueError
+   Choose A or B and justify in a short comment.
+3) Record OOD axes in split metadata explicitly:
+   - ood_axes should include "context" always
+   - include "perturbation" only if mixed OOD happens
+4) Add tests:
+   - case where held-out context contains a perturbation absent in train
+   - ensure behavior matches chosen policy (filter or fail)
+   - ensure metadata labels the axes correctly
 
-Verification
-- Unit tests.
-```
+Acceptance:
+- pytest passes
+- split JSON artifacts contain enough metadata to interpret the OOD regime
 
----
+Output:
+- Diff and pytest summary
+- Example split metadata JSON snippet printed in the prompt output
 
-## Prompt 5 — Implement PerturbFM v2 (CGIO): gene-set interventions + uncertain graph priors
 
-```text
-You are an agentic coding assistant working inside the `PerturbFM` repo.
+MEGA-PROMPT 6: scPerturBench metric parity and scalability upgrade
+================================================================
 
-Read first
-- `project_overview.md` section 8.4 (v2 CGIO implementation-ready contract + ablations)
+You are working in PerturbFM.
 
-Goal
-- Implement PerturbFM v2 (CGIO): context-conditioned low-rank operator + graph-propagated intervention signal + uncertainty-aware graph trust gating.
+Goal:
+Replace placeholder scPerturBench metrics with implementations that are:
+- scalable by default (no uncontrolled O(n^2) paths)
+- testable and documented
+- parity-checkable against reference scripts
 
-Non-negotiables
-- Must accept perturbations as gene sets / masks (`obs["pert_genes"]`).
-- Must support multi-gene perturbations.
-- Must ship with an ablation-friendly config/CLI surface.
+Scope:
+- src/perturbfm/eval/metrics_scperturbench.py
+- scripts/validate_metrics.py (create or expand)
+- tests/test_metrics_scperturbench.py (create or expand)
+- docs/dev_todo.md (update)
 
-Scope
-1) Data plumbing
-   - Extend the synthetic generator in `src/perturbfm/data/registry.py` to emit:
-     - `obs["pert_genes"]` (list-of-lists)
-     - a sparse random adjacency stored in metadata or written as a `graphs/*.npz` artifact for tests
-   - Add helpers to convert `pert_genes` to `pert_mask [B, G]` aligned to `var`.
-2) Model code
-   - Add `src/perturbfm/models/perturbfm/cgio.py` (or similar) implementing:
-     - graph propagation encoder (single + multi-graph)
-     - trust gating (fixed vs gated)
-     - contextual operator (global basis + contextual mixture weights)
-     - mean + variance outputs in delta space
-3) Training
-   - Extend `src/perturbfm/train/trainer.py` with `fit_predict_perturbfm_v2(...)`.
-   - Add CLI: `perturbfm train perturbfm-v2 ...` with flags to toggle:
-     - graph on/off
-     - gating on/off
-     - single vs multi-graph
-     - operator conditioning on/off
-4) Evaluation
-   - Ensure evaluator writes full metric panels + calibration for v2 runs.
-5) Tests
-   - Add a fast CPU smoke test showing v2 can learn the synthetic regime.
-   - Add a test that multi-gene perturbations do not crash and produce correct shapes.
+Requirements:
+1) For each metric listed in metrics_scperturbench.py:
+   - write a docstring defining it
+   - implement a scalable default strategy:
+     - Energy distance: subsampling or unbiased pair sampling
+     - Wasserstein: sliced Wasserstein (random projections) or justify 1D approximation
+     - KL: define distributional assumption clearly
+     - Common-DEGs: explicit, deterministic DEG procedure
+2) Add synthetic tests:
+   - identity predictor sanity
+   - collapsed predictor penalty
+3) Add parity validation script:
+   - compare against reference metrics JSON or script output within tolerance
 
-Dependencies
-- Do not add a GNN library; implement message passing directly in torch.
+Constraints:
+- Do not vendor GPL scPerturBench code
+- Keep runtime bounded
 
-Verification
-- Unit tests.
-- Quick end-to-end smoke with synthetic dataset + Context-OOD split.
-```
+Acceptance:
+- pytest passes
+- validate_metrics.py runs and prints pass/fail
 
----
+Output:
+- Diff summary
+- Updated docs/dev_todo.md parity notes
 
-## Prompt 6 — Ablation runner + report upgrades (make claims reproducible)
 
-```text
-You are an agentic coding assistant working inside the `PerturbFM` repo.
+MEGA-PROMPT 7: Implement PerturBench rank metrics and collapse diagnostics
+=========================================================================
 
-Goal
-- Make the “ablation grid” in `project_overview.md` executable and comparable across runs.
+You are working in PerturbFM.
 
-Scope
-1) Config-driven runs
-   - Add a simple config loader (YAML) that resolves defaults + overrides and writes a resolved config to the run directory.
-   - Ensure every run logs: split hash, config hash, git SHA (if available), and dataset artifact hash.
-2) Deterministic run IDs
-   - Standardize run_id: `<UTCYYYYMMDD-HHMMSS>_<splitHash7>_<modelName>_<configHash7>`
-3) Report upgrades
-   - Extend `report.html` to include:
-     - metric tables for scPerturBench + PerturBench panels
-     - calibration tables (coverage, NLL)
-     - risk–coverage curve data (plot optional)
-     - graph reliance diagnostics (for v1/v2)
-4) Add `scripts/run_ablations.py`
-   - Given a dataset artifact + split hash + a list of configs, run the full ablation grid and write a summary table (CSV/JSON).
-   - Fail fast if any run produces partial metrics.
+Goal:
+Implement PerturBench-style rank and collapse-sensitive metrics.
 
-Verification
-- Run a small ablation set on synthetic data and confirm summary outputs.
-```
+Scope:
+- src/perturbfm/eval/metrics_perturbench.py
+- tests/test_metrics_perturbench.py
+- docs/dev_todo.md
+
+Requirements:
+1) Implement rank-based metric(s) aligned with PerturBench intent.
+2) Add collapse diagnostics (prediction variance, etc.).
+3) Add synthetic tests:
+   - perfect predictor > noisy predictor
+   - collapsed predictor heavily penalized
+4) Integrate metrics into evaluator output.
+
+Acceptance:
+- pytest passes
+- sample metric dict printed from synthetic test
+
+Output:
+- Diff summary
+- Example metrics output
+
+
+MEGA-PROMPT 8: Graph scalability refactor (dense → sparse) + scalable gating
+===========================================================================
+
+You are working in PerturbFM.
+
+Goal:
+Refactor graph code to scale beyond toy gene counts.
+
+Scope:
+- src/perturbfm/models/perturbfm/gene_graph.py
+- src/perturbfm/models/perturbfm/perturb_encoder.py
+- src/perturbfm/models/perturbfm/cgio.py
+- tests/
+
+Requirements:
+1) Implement sparse graph representation (edge_index / CSR).
+2) Replace dense matmuls with sparse message passing.
+3) Implement scalable gating modes:
+   - none
+   - scalar
+   - node
+   - lowrank
+   - mlp
+4) Add ablation flags to configs.
+5) Add tests ensuring no dense GxG allocation.
+
+Acceptance:
+- pytest passes
+- no dense gate matrices allocated
+
+Output:
+- Diff summary
+- README snippet documenting graph format and gating modes
+
+
+MEGA-PROMPT 9: Packaging + README + benchmark harness integration
+================================================================
+
+You are working in PerturbFM.
+
+Goal:
+Fix dependencies, docs, and external benchmark integration without licensing issues.
+
+Scope:
+- pyproject.toml
+- README.md
+- scripts/
+- src/perturbfm/data/adapters/perturbench.py
+
+Requirements:
+1) Add optional dependency extras:
+   - bench = ["anndata", "h5py", ...]
+2) Ensure adapter error messages reference correct extras.
+3) Fix README:
+   - remove/add missing files
+   - add minimal smoke-run instructions
+   - document external scPerturBench harness usage
+4) Add script to export predictions for external harness.
+
+Acceptance:
+- pip install -e ".[bench]" works
+- README commands are consistent
+- no GPL code vendored
+
+Output:
+- Diff summary
+- Updated README sections
+
+
+MEGA-PROMPT 10: Guardrail tests and invariants
+=============================================
+
+You are working in PerturbFM.
+
+Goal:
+Add guardrail tests to prevent regressions in split validity, calibration, and metrics.
+
+Scope:
+- tests/test_splits.py
+- tests/test_uncertainty.py
+- tests/test_metrics_scperturbench.py
+- utils (optional)
+
+Requirements:
+1) Tests enforcing:
+   - valid context-OOD split semantics
+   - no conformal test leakage
+   - metric completeness for v0/v1/v2
+2) Synthetic regression tests:
+   - collapsed predictor penalized
+   - identity predictor near-optimal
+3) Fail loudly on regression.
+
+Acceptance:
+- pytest passes
+- tests fail if invariants are violated
+
+Output:
+- Test diffs
+- pytest summary

@@ -26,7 +26,7 @@ Core pieces (working):
   - `scripts/check.sh` (quick repo health)
   - `scripts/validate_metrics.py` (metric parity harness)
   - `scripts/run_ablations.py` (batch runs + summary)
-- `scripts/generate_diagrams.py` (regenerate README diagrams: SVG + PNG)
+  - `scripts/generate_pub_diagrams.py` (regenerate README diagrams)
 
 Known gaps / “not done yet”:
 - Real benchmarks:
@@ -39,7 +39,7 @@ Known gaps / “not done yet”:
 
 ## Big picture (pipeline)
 
-![PerturbFM pipeline diagram](docs/diagrams/pipeline.svg)
+![PerturbFM pipeline diagram](docs/diagrams/pub/pipeline_lane.svg)
 
 If you can’t see the image above for some reason, read it as:
 
@@ -63,7 +63,7 @@ If you can’t see the image above for some reason, read it as:
 
 CGIO sketch:
 
-![PerturbFM v2 (CGIO) diagram](docs/diagrams/cgio.svg)
+![PerturbFM v2 (CGIO) diagram](docs/diagrams/pub/cgio_operator.svg)
 
 If you can’t see the image above for some reason, read it as:
 

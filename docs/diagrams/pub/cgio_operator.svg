@@ -1,0 +1,306 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+  "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns:xlink="http://www.w3.org/1999/xlink" width="695.16pt" height="313.776pt" viewBox="0 0 695.16 313.776" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:date>2025-12-22T19:18:01.323425</dc:date>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.10.1, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="figure_1">
+  <g id="patch_1">
+   <path d="M 0 313.776 
+L 695.16 313.776 
+L 695.16 0 
+L 0 0 
+z
+" style="fill: #ffffff"/>
+  </g>
+  <g id="axes_1">
+   <g id="patch_2">
+    <path d="M 34.4304 117.96912 
+L 660.7296 117.96912 
+L 660.7296 37.1376 
+L 34.4304 37.1376 
+z
+" clip-path="url(#p77649c07ef)" style="fill: #f1f5f9; stroke: #e2e8f0; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_3">
+    <path d="M 54.8532 103.00032 
+L 204.6204 103.00032 
+Q 218.2356 103.00032 218.2356 97.0128 
+L 218.2356 55.10016 
+Q 218.2356 49.11264 204.6204 49.11264 
+L 54.8532 49.11264 
+Q 41.238 49.11264 41.238 55.10016 
+L 41.238 97.0128 
+Q 41.238 103.00032 54.8532 103.00032 
+z
+" clip-path="url(#p77649c07ef)" style="fill: #f8fafc; stroke: #111827; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_4">
+    <path d="M 231.8508 103.00032 
+L 381.618 103.00032 
+Q 395.2332 103.00032 395.2332 97.0128 
+L 395.2332 55.10016 
+Q 395.2332 49.11264 381.618 49.11264 
+L 231.8508 49.11264 
+Q 218.2356 49.11264 218.2356 55.10016 
+L 218.2356 97.0128 
+Q 218.2356 103.00032 231.8508 103.00032 
+z
+" clip-path="url(#p77649c07ef)" style="fill: #f8fafc; stroke: #111827; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_5">
+    <path d="M 408.8484 103.00032 
+L 558.6156 103.00032 
+Q 572.2308 103.00032 572.2308 97.0128 
+L 572.2308 55.10016 
+Q 572.2308 49.11264 558.6156 49.11264 
+L 408.8484 49.11264 
+Q 395.2332 49.11264 395.2332 55.10016 
+L 395.2332 97.0128 
+Q 395.2332 103.00032 408.8484 103.00032 
+z
+" clip-path="url(#p77649c07ef)" style="fill: #f8fafc; stroke: #111827; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_6">
+    <path d="M 34.4304 282.62592 
+L 660.7296 282.62592 
+L 660.7296 132.93792 
+L 34.4304 132.93792 
+z
+" clip-path="url(#p77649c07ef)" style="fill: #ffffff; stroke: #e2e8f0; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_7">
+    <path d="M 54.8532 198.80064 
+L 204.6204 198.80064 
+Q 218.2356 198.80064 218.2356 192.81312 
+L 218.2356 144.91296 
+Q 218.2356 138.92544 204.6204 138.92544 
+L 54.8532 138.92544 
+Q 41.238 138.92544 41.238 144.91296 
+L 41.238 192.81312 
+Q 41.238 198.80064 54.8532 198.80064 
+z
+" clip-path="url(#p77649c07ef)" style="fill: #f8fafc; stroke: #111827; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_8">
+    <path d="M 231.8508 198.80064 
+L 381.618 198.80064 
+Q 395.2332 198.80064 395.2332 192.81312 
+L 395.2332 144.91296 
+Q 395.2332 138.92544 381.618 138.92544 
+L 231.8508 138.92544 
+Q 218.2356 138.92544 218.2356 144.91296 
+L 218.2356 192.81312 
+Q 218.2356 198.80064 231.8508 198.80064 
+z
+" clip-path="url(#p77649c07ef)" style="fill: #f0fdf4; stroke: #16a34a; stroke-width: 1.2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_9">
+    <path d="M 408.8484 198.80064 
+L 599.4612 198.80064 
+Q 613.0764 198.80064 613.0764 192.81312 
+L 613.0764 144.91296 
+Q 613.0764 138.92544 599.4612 138.92544 
+L 408.8484 138.92544 
+Q 395.2332 138.92544 395.2332 144.91296 
+L 395.2332 192.81312 
+Q 395.2332 198.80064 408.8484 198.80064 
+z
+" clip-path="url(#p77649c07ef)" style="fill: #eef2ff; stroke: #7c3aed; stroke-width: 1.2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_10">
+    <path d="M 231.8508 258.67584 
+L 381.618 258.67584 
+Q 395.2332 258.67584 395.2332 252.68832 
+L 395.2332 210.77568 
+Q 395.2332 204.78816 381.618 204.78816 
+L 231.8508 204.78816 
+Q 218.2356 204.78816 218.2356 210.77568 
+L 218.2356 252.68832 
+Q 218.2356 258.67584 231.8508 258.67584 
+z
+" clip-path="url(#p77649c07ef)" style="fill: #ecfeff; stroke: #2563eb; stroke-width: 1.2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_11">
+    <path d="M 408.8484 252.68832 
+L 599.4612 252.68832 
+Q 613.0764 252.68832 613.0764 246.7008 
+L 613.0764 210.77568 
+Q 613.0764 204.78816 599.4612 204.78816 
+L 408.8484 204.78816 
+Q 395.2332 204.78816 395.2332 210.77568 
+L 395.2332 246.7008 
+Q 395.2332 252.68832 408.8484 252.68832 
+z
+" clip-path="url(#p77649c07ef)" style="fill: #f8fafc; stroke: #111827; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_12">
+    <path d="M 408.8484 288.61344 
+L 599.4612 288.61344 
+Q 613.0764 288.61344 613.0764 282.62592 
+L 613.0764 252.68832 
+Q 613.0764 246.7008 599.4612 246.7008 
+L 408.8484 246.7008 
+Q 395.2332 246.7008 395.2332 252.68832 
+L 395.2332 282.62592 
+Q 395.2332 288.61344 408.8484 288.61344 
+z
+" clip-path="url(#p77649c07ef)" style="fill: #f8fafc; stroke: #111827; stroke-linejoin: miter"/>
+   </g>
+   <g id="text_1">
+    <text style="font-weight: 700; font-size: 16px; font-family: 'STIXGeneral'; text-anchor: start; fill: #111827" x="20.8152" y="27.28628" transform="rotate(-0 20.8152 27.28628)">PerturbFM v2 (CGIO): decomposition + operator view</text>
+   </g>
+   <g id="text_2">
+    <text style="font-size: 12px; font-family: 'STIXGeneral'; text-anchor: start; fill: #475569" x="20.8152" y="42.339465" transform="rotate(-0 20.8152 42.339465)">CPA/scGen-style additive structure, with CGIO providing the perturbation-effect branch.</text>
+   </g>
+   <g id="text_3">
+    <text style="font-weight: 700; font-size: 12px; font-family: 'STIXGeneral'; text-anchor: start; fill: #475569" x="48.0456" y="43.12512" transform="rotate(-0 48.0456 43.12512)">A) Decomposition (CPA/scGen style)</text>
+   </g>
+   <g id="text_4">
+    <text style="font-size: 12px; font-family: 'STIXGeneral'; fill: #111827" transform="translate(103.407112 73.247214)">basal_state</text>
+    <text style="font-size: 12px; font-family: 'STIXGeneral'; fill: #111827" transform="translate(99.7968 84.456996)">= X_control</text>
+   </g>
+   <g id="text_5">
+    <text style="font-size: 11px; font-family: 'STIXGeneral'; fill: #111827" transform="translate(270.983541 73.476164)">systematic_shift</text>
+    <text style="font-size: 11px; font-family: 'STIXGeneral'; fill: #111827" transform="translate(254.548853 83.762109)">= s(context, covariates)</text>
+   </g>
+   <g id="text_6">
+    <text style="font-size: 9px; font-family: 'STIXGeneral'; fill: #111827" transform="translate(449.243719 73.945312)">perturbation_effect</text>
+    <text style="font-size: 9px; font-family: 'STIXGeneral'; fill: #111827" transform="translate(425.788875 82.352648)">= Δ̂(pert_genes, graph, context)</text>
+   </g>
+   <g id="text_7">
+    <text style="font-weight: 700; font-size: 18px; font-family: 'STIXGeneral'; text-anchor: middle; fill: #111827" x="211.428" y="80.294917" transform="rotate(-0 211.428 80.294917)">+</text>
+   </g>
+   <g id="text_8">
+    <text style="font-weight: 700; font-size: 18px; font-family: 'STIXGeneral'; text-anchor: middle; fill: #111827" x="388.4256" y="80.294917" transform="rotate(-0 388.4256 80.294917)">+</text>
+   </g>
+   <g id="text_9">
+    <text style="font-size: 12px; font-family: 'STIXGeneral'; text-anchor: start; fill: #111827" x="54.8532" y="110.48472" transform="rotate(-0 54.8532 110.48472)">X̂_pert = X_control + s(context) + Δ̂</text>
+   </g>
+   <g id="text_10">
+    <text style="font-weight: 700; font-size: 12px; font-family: 'STIXGeneral'; text-anchor: start; fill: #475569" x="48.0456" y="141.9192" transform="rotate(-0 48.0456 141.9192)">B) CGIO branch (perturbation_effect)</text>
+   </g>
+   <g id="text_11">
+    <text style="font-size: 11px; font-family: 'STIXGeneral'; fill: #111827" transform="translate(102.852972 166.282724)">Intervention</text>
+    <text style="font-size: 11px; font-family: 'STIXGeneral'; fill: #111827" transform="translate(82.331097 176.558356)">pert_genes → mask g</text>
+   </g>
+   <g id="text_12">
+    <text style="font-size: 11px; font-family: 'STIXGeneral'; fill: #111827" transform="translate(265.340884 166.277567)">Graph propagation</text>
+    <text style="font-size: 11px; font-family: 'STIXGeneral'; fill: #111827" transform="translate(261.700572 176.563513)">h = f_graph(g; A, τ)</text>
+   </g>
+   <g id="text_13">
+    <text style="font-size: 12px; font-family: 'STIXGeneral'; fill: #111827" transform="translate(482.830425 166.053774)">Operator</text>
+    <text style="font-size: 12px; font-family: 'STIXGeneral'; fill: #111827" transform="translate(477.550425 177.263556)">Δ̂ = B(c) h</text>
+   </g>
+   <g id="text_14">
+    <text style="font-size: 10px; font-family: 'STIXGeneral'; fill: #111827" transform="translate(290.899244 224.720203)">Context</text>
+    <text style="font-size: 10px; font-family: 'STIXGeneral'; fill: #111827" transform="translate(267.208619 234.061687)">c = embed(context)</text>
+    <text style="font-size: 10px; font-family: 'STIXGeneral'; fill: #111827" transform="translate(278.458619 243.403172)">(+ covariates)</text>
+   </g>
+   <g id="text_15">
+    <text style="font-size: 11px; font-family: 'STIXGeneral'; fill: #111827" transform="translate(463.684253 226.16308)">Aleatoric variance</text>
+    <text style="font-size: 11px; font-family: 'STIXGeneral'; fill: #111827" transform="translate(471.121284 236.438713)">σ_a^2 = v(c,h)</text>
+   </g>
+   <g id="text_16">
+    <text style="font-size: 9px; font-family: 'STIXGeneral'; fill: #111827" transform="translate(486.1548 265.550171)">Epistemic</text>
+    <text style="font-size: 9px; font-family: 'STIXGeneral'; fill: #111827" transform="translate(467.915034 273.957507)">ensembles → σ_e^2</text>
+   </g>
+   <g id="patch_13">
+    <path d="M 204.6204 168.86304 
+Q 218.2356 168.86304 230.285552 168.86304 
+" style="fill: none; stroke: #111827; stroke-width: 1.4; stroke-linecap: round"/>
+    <path d="M 225.485552 166.46304 
+L 230.285552 168.86304 
+L 225.485552 171.26304 
+z
+" style="fill: #111827; stroke: #111827; stroke-width: 1.4; stroke-linecap: round"/>
+   </g>
+   <g id="patch_14">
+    <path d="M 381.618 168.86304 
+Q 395.2332 168.86304 407.283152 168.86304 
+" style="fill: none; stroke: #111827; stroke-width: 1.4; stroke-linecap: round"/>
+    <path d="M 402.483152 166.46304 
+L 407.283152 168.86304 
+L 402.483152 171.26304 
+z
+" style="fill: #111827; stroke: #111827; stroke-width: 1.4; stroke-linecap: round"/>
+   </g>
+   <g id="patch_15">
+    <path d="M 306.7344 210.77568 
+Q 370.158307 216.498816 428.025813 193.312129 
+" style="fill: none; stroke: #111827; stroke-width: 1.2; stroke-linecap: round"/>
+    <path d="M 422.677524 192.869621 
+L 428.025813 193.312129 
+L 424.462833 197.325255 
+z
+" style="fill: #111827; stroke: #111827; stroke-width: 1.2; stroke-linecap: round"/>
+   </g>
+   <g id="patch_16">
+    <path d="M 504.1548 192.81312 
+Q 504.1548 201.7944 504.1548 209.545843 
+" style="fill: none; stroke: #111827; stroke-width: 1.1; stroke-linecap: round"/>
+    <path d="M 506.5548 204.745843 
+L 504.1548 209.545843 
+L 501.7548 204.745843 
+z
+" style="fill: #111827; stroke: #111827; stroke-width: 1.1; stroke-linecap: round"/>
+   </g>
+   <g id="patch_17">
+    <path d="M 504.1548 246.7008 
+Q 504.1548 249.69456 504.1548 251.458483 
+" style="fill: none; stroke: #111827; stroke-width: 1.1; stroke-linecap: round"/>
+    <path d="M 506.5548 246.658483 
+L 504.1548 251.458483 
+L 501.7548 246.658483 
+z
+" style="fill: #111827; stroke: #111827; stroke-width: 1.1; stroke-linecap: round"/>
+   </g>
+   <g id="patch_18">
+    <path d="M 503.370746 143.07402 
+Q 493.943932 120.964128 485.043312 100.088384 
+" style="fill: none; stroke-dasharray: 4.44,1.92; stroke-dashoffset: 0; stroke: #475569; stroke-width: 1.2; stroke-linecap: round"/>
+    <path d="M 484.718168 105.445089 
+L 485.043312 100.088384 
+L 489.133589 103.562522 
+z
+" style="fill: #475569; stroke-dasharray: 4.44,1.92; stroke-dashoffset: 0; stroke: #475569; stroke-width: 1.2; stroke-linecap: round"/>
+   </g>
+   <g id="text_17">
+    <text style="font-size: 10px; font-family: 'STIXGeneral'; text-anchor: start; fill: #475569" x="510.9624" y="120.96288" transform="rotate(-0 510.9624 120.96288)">provides Δ̂</text>
+   </g>
+   <g id="patch_19">
+    <path d="M 306.7344 208.77247 
+Q 306.7344 153.893656 306.7344 100.132876 
+" style="fill: none; stroke-dasharray: 3.7,1.6; stroke-dashoffset: 0; stroke: #475569; stroke-linecap: round"/>
+    <path d="M 304.3344 104.932876 
+L 306.7344 100.132876 
+L 309.1344 104.932876 
+z
+" style="fill: #475569; stroke-dasharray: 3.7,1.6; stroke-dashoffset: 0; stroke: #475569; stroke-linecap: round"/>
+   </g>
+   <g id="text_18">
+    <text style="font-size: 10px; font-family: 'STIXGeneral'; fill: #475569" transform="translate(327.179287 169.226261) rotate(-90)">feeds s(·)</text>
+   </g>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="p77649c07ef">
+   <rect x="7.2" y="7.2" width="680.76" height="299.376"/>
+  </clipPath>
+ </defs>
+</svg>
