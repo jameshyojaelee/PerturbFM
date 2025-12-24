@@ -1,7 +1,8 @@
 # Dev TODO (PerturbFM)
 
-This file is the internal fix list derived from `docs/prompts.md` MEGA‑PROMPT 1.
-For repository layout and current architecture, see `README.md` and `docs/prompts.md` (Project overview).
+This file is the internal fix list from the initial buildout phase (kept for historical record).
+For the **current** execution roadmap and next experiments, see `docs/prompts.md`.
+For repository layout and current architecture, see `README.md`.
 For local agent behavior rules, see `docs/SYSTEM_PROMPT.md` / `docs/AGENT_GUIDELINES.md` (gitignored by design).
 
 ## Pre‑change test run
@@ -23,7 +24,7 @@ Result (2025‑12‑23):
 This section intentionally stays lightweight to avoid drifting from the code.
 Use the current sources of truth:
 - `README.md` → “Repository layout”
-- `docs/prompts.md` → “Project overview (detailed)”
+- `docs/prompts.md` → “Active roadmap prompts”
 
 ## Issue records (A–I) — status (archived)
 

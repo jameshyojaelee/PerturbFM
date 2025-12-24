@@ -22,7 +22,9 @@ fi
 RUN_ROOT="${OUT_ROOT}/runs_${SLURM_ARRAY_TASK_ID}"
 OUT_SCORECARD="${OUT_ROOT}/scorecard_${SLURM_ARRAY_TASK_ID}.json"
 
-python scripts/run_perturbench_suite.py \
+PYTHON="${PYTHON:-python3}"
+
+"$PYTHON" scripts/run_perturbench_suite.py \
   --config "$CONFIG_PATH" \
   --out "$OUT_SCORECARD" \
   --run-root "$RUN_ROOT"
