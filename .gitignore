@@ -19,6 +19,7 @@ third_party/
 
 progress/
 prompts/
+logs/
 
 project_overview.md
 current_state.md

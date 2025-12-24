@@ -1,0 +1,4 @@
+{
+  "models[4].hidden_dim": [64, 128],
+  "models[4].epochs": [1, 3]
+}
