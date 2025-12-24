@@ -231,7 +231,6 @@ External models (for context/positioning):
 - [GEARS](https://github.com/snap-stanford/GEARS)
 - [scGen](https://github.com/theislab/scgen)
 - [CPA](https://github.com/theislab/cpa)
-- [CellOT](https://github.com/bunnech/cellot)
 
 Benchmarks:
 - [PerturBench](https://github.com/altoslabs/perturbench)

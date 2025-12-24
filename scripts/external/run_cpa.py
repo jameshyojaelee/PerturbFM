@@ -65,7 +65,7 @@ def main() -> int:
     # Counterfactual prediction: set X to control baseline
     if "X_control" in adata.layers:
         adata.X = adata.layers["X_control"].copy()
-    model.predict(adata=adata, indices=test_idx, batch_size=args.batch_size, n_samples=1)
+    model.predict(adata=adata, indices=None, batch_size=args.batch_size, n_samples=1)
     pred = adata.obsm["CPA_pred"][test_idx]
 
     mean = pred - ds.X_control[test_idx]

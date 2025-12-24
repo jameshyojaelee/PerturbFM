@@ -28,11 +28,5 @@
     "data": "data/artifacts/scperturb/xiehon2017",
     "split": "b8613d05c135cab50c2986a67689235cd5bc6857b3e3128273fd2dc0c6f8ae46",
     "preds": "runs/external_predictions/scgen/xiehon2017/b8613d05c135cab50c2986a67689235cd5bc6857b3e3128273fd2dc0c6f8ae46/predictions.npz"
-  },
-  {
-    "name": "CellOT",
-    "data": "data/artifacts/scperturb/xiehon2017",
-    "split": "b8613d05c135cab50c2986a67689235cd5bc6857b3e3128273fd2dc0c6f8ae46",
-    "preds": "/path/to/cellot/predictions.npz"
   }
 ]

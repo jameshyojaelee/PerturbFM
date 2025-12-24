@@ -389,7 +389,7 @@ def diagram_landscape_matrix(out: Path, fmt: str) -> None:
     _title(ax, "Landscape (high-level): how CGIO combines the strongest ideas")
     _subtitle(ax, "This is a qualitative summary of themes from current_state.md (not a benchmark result).")
 
-    rows = ["scGen", "CPA", "CellOT", "GEARS", "TxPert", "PerturbNet", "GPerturb", "PerturbFM v2 (CGIO)"]
+    rows = ["scGen", "CPA", "GEARS", "TxPert", "PerturbNet", "GPerturb", "PerturbFM v2 (CGIO)"]
     cols = ["Context OOD", "Pert OOD", "Distributional", "Calibrated uncertainty", "Graph prior"]
     # states: strong, partial, absent, mixed
     M = [
