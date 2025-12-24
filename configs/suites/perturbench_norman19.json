@@ -5,6 +5,7 @@
   "models": [
     {"kind": "baseline", "name": "global_mean"},
     {"kind": "baseline", "name": "per_perturbation_mean"},
+    {"kind": "baseline", "name": "additive_mean"},
     {"kind": "baseline", "name": "ridge", "alpha": 1.0},
     {"kind": "baseline", "name": "latent_shift", "n_components": 32},
     {"kind": "v0", "epochs": 1, "hidden_dim": 64, "batch_size": 256, "device": "cpu"}

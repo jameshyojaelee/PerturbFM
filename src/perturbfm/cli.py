@@ -91,6 +91,7 @@ def _add_train(subparsers: argparse._SubParsersAction) -> None:
             "global_mean",
             "per_perturbation_mean",
             "per_perturbation_context_mean",
+            "additive_mean",
             "latent_shift",
             "ridge",
         ],

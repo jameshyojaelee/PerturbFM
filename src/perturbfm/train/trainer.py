@@ -9,6 +9,7 @@ import numpy as np
 from perturbfm.data.canonical import PerturbDataset
 from perturbfm.data.batching import iter_index_batches
 from perturbfm.data.splits.split_spec import Split
+from perturbfm.models.baselines.additive_mean import AdditiveMeanBaseline
 from perturbfm.models.baselines.mean_delta import MeanDeltaBaseline
 from perturbfm.models.baselines.latent_shift import LatentShiftBaseline
 from perturbfm.models.baselines.ridge_delta import RidgeDeltaBaseline
@@ -28,6 +29,8 @@ def get_baseline(name: str, **kwargs):
         return MeanDeltaBaseline(mode="per_perturbation")
     if name == "per_perturbation_context_mean":
         return MeanDeltaBaseline(mode="per_perturbation_context")
+    if name == "additive_mean":
+        return AdditiveMeanBaseline()
     if name == "latent_shift":
         return LatentShiftBaseline(n_components=int(kwargs.get("n_components", 32)))
     if name == "ridge":
@@ -49,7 +52,7 @@ def _load_pretrained_encoder(model, path: str | None, freeze: bool, device: str)
 
 
 def _fit_baseline(model, dataset: PerturbDataset, split: Split) -> None:
-    if isinstance(model, MeanDeltaBaseline):
+    if isinstance(model, (MeanDeltaBaseline, AdditiveMeanBaseline)):
         model.fit(dataset.delta, dataset.obs, split.train_idx)
         return
     if isinstance(model, LatentShiftBaseline):
@@ -66,7 +69,7 @@ def _fit_baseline(model, dataset: PerturbDataset, split: Split) -> None:
 
 
 def _predict_baseline(model, dataset: PerturbDataset, idx: np.ndarray) -> np.ndarray:
-    if isinstance(model, MeanDeltaBaseline):
+    if isinstance(model, (MeanDeltaBaseline, AdditiveMeanBaseline)):
         return model.predict(dataset.obs, idx)
     if isinstance(model, LatentShiftBaseline):
         return model.predict(dataset.X_control, dataset.obs, idx)

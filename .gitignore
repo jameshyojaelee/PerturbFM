@@ -30,3 +30,5 @@ prompts.md
 docs/SYSTEM_PROMPT.md
 docs/AGENT_GUIDELINES.md
 AGENTS.md
+
+Deep-learning-based gene perturbation effect prediction does not yet outperform simple linear baselines.pdf
