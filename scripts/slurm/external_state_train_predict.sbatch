@@ -19,6 +19,7 @@ set -euo pipefail
 : "${NAME:?Set NAME for the experiment folder name under RUNS_ROOT}"
 
 export PYTHONNOUSERSITE=1
+export PYTHONPATH=src
 
 RUN_DIR="${RUNS_ROOT}/${NAME}"
 
@@ -61,7 +62,7 @@ OUT_PREDS="runs/external_predictions/state/${NAME}/${SPLIT_HASH}/predictions.npz
 mkdir -p "$(dirname "${OUT_PREDS}")"
 
 echo "[info] Converting to PerturbFM predictions.npz -> ${OUT_PREDS}"
-PYTHONPATH=src python3 scripts/external/convert_adata_pred_to_predictions.py \
+micromamba run -p "${ENV_PREFIX}" python scripts/external/convert_adata_pred_to_predictions.py \
   --data "${DATA_ARTIFACT}" \
   --split "${SPLIT_HASH}" \
   --adata-pred "${PRED_ADATA}" \
@@ -71,4 +72,3 @@ PYTHONPATH=src python3 scripts/external/convert_adata_pred_to_predictions.py \
   --out "${OUT_PREDS}"
 
 echo "[ok] Done. Predictions: ${OUT_PREDS}"
-

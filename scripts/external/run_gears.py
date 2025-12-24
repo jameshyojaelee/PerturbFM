@@ -53,6 +53,12 @@ def main() -> int:
         pickle.dump({"train": train_perts, "val": val_perts, "test": test_perts}, f)
 
     adata = sc.read_h5ad(args.adata)
+    try:
+        import scipy.sparse as sp
+        if not sp.issparse(adata.X):
+            adata.X = sp.csr_matrix(adata.X)
+    except Exception:
+        pass
 
     pert_data = PertData(str(workdir))
     pert_data.new_data_process(dataset_name="pfm_gears", adata=adata)
@@ -117,4 +123,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

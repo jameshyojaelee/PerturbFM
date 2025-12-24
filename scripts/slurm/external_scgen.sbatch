@@ -19,6 +19,8 @@ set -euo pipefail
 : "${OUT_PREDS:?Set OUT_PREDS path}"
 
 export PYTHONNOUSERSITE=1
+export PYTHONPATH=src
+export LD_LIBRARY_PATH="${ENV_PREFIX}/lib:${LD_LIBRARY_PATH:-}"
 
 micromamba run -p "${ENV_PREFIX}" python scripts/external/run_scgen.py \
   --adata "${ADATA}" \
@@ -31,4 +33,3 @@ micromamba run -p "${ENV_PREFIX}" python scripts/external/run_scgen.py \
   --n-hidden 256 \
   --n-latent 64 \
   --n-layers 2
-
