@@ -3,6 +3,36 @@
     "name": "STATE",
     "data": "data/artifacts/perturbench/norman19",
     "split": "da58b88d99c4133b173cf75d4998649a36974d7ec4ebd831930a10328cfe0b1b",
-    "preds": "/path/to/state/predictions.npz"
+    "preds": "runs/external_predictions/state/state_norman19/da58b88d99c4133b173cf75d4998649a36974d7ec4ebd831930a10328cfe0b1b/predictions.npz"
+  },
+  {
+    "name": "STATE",
+    "data": "data/artifacts/scperturb/xiehon2017",
+    "split": "b8613d05c135cab50c2986a67689235cd5bc6857b3e3128273fd2dc0c6f8ae46",
+    "preds": "runs/external_predictions/state/state_xiehon2017/b8613d05c135cab50c2986a67689235cd5bc6857b3e3128273fd2dc0c6f8ae46/predictions.npz"
+  },
+  {
+    "name": "GEARS",
+    "data": "data/artifacts/perturbench/norman19",
+    "split": "da58b88d99c4133b173cf75d4998649a36974d7ec4ebd831930a10328cfe0b1b",
+    "preds": "/path/to/gears/predictions.npz"
+  },
+  {
+    "name": "CPA",
+    "data": "data/artifacts/perturbench/norman19",
+    "split": "da58b88d99c4133b173cf75d4998649a36974d7ec4ebd831930a10328cfe0b1b",
+    "preds": "/path/to/cpa/predictions.npz"
+  },
+  {
+    "name": "scGen",
+    "data": "data/artifacts/scperturb/xiehon2017",
+    "split": "b8613d05c135cab50c2986a67689235cd5bc6857b3e3128273fd2dc0c6f8ae46",
+    "preds": "/path/to/scgen/predictions.npz"
+  },
+  {
+    "name": "CellOT",
+    "data": "data/artifacts/scperturb/xiehon2017",
+    "split": "b8613d05c135cab50c2986a67689235cd5bc6857b3e3128273fd2dc0c6f8ae46",
+    "preds": "/path/to/cellot/predictions.npz"
   }
 ]

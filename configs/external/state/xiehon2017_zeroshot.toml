@@ -1,0 +1,11 @@
+[datasets]
+xiehon2017 = "data/external/state/xiehon2017"
+
+[training]
+xiehon2017 = "train"
+
+[zeroshot]
+"xiehon2017.1" = "test"
+
+[fewshot]
+

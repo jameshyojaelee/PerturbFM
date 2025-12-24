@@ -1,0 +1,12 @@
+[datasets]
+norman19 = "data/external/state/norman19"
+
+[training]
+norman19 = "train"
+
+[zeroshot]
+
+[fewshot]
+[fewshot."norman19.k562"]
+test = ["KLF1"]
+
