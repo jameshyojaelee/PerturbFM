@@ -1,0 +1,8 @@
+data=data/artifacts/perturbench/norman19
+split=da58b88d99c4133b173cf75d4998649a36974d7ec4ebd831930a10328cfe0b1b
+max_cells=5000
+topk=20
+seed=0
+allow_negative=False
+n_genes=5575
+density=0.006131
