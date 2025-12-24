@@ -1,0 +1,8 @@
+[
+  {
+    "name": "STATE",
+    "data": "data/artifacts/perturbench/norman19",
+    "split": "da58b88d99c4133b173cf75d4998649a36974d7ec4ebd831930a10328cfe0b1b",
+    "preds": "/path/to/state/predictions.npz"
+  }
+]
