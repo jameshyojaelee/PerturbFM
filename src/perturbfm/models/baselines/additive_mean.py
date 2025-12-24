@@ -17,6 +17,8 @@ class AdditiveMeanBaseline:
     def _normalize_genes(self, genes) -> List[str]:
         if genes is None:
             return []
+        if isinstance(genes, str):
+            return [genes]
         if isinstance(genes, np.ndarray):
             genes = genes.tolist()
         return [str(g) for g in genes]

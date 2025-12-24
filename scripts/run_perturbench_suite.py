@@ -34,7 +34,14 @@ import numpy as np
 from perturbfm.data.registry import make_synthetic_dataset
 from perturbfm.data.splits.split_spec import context_ood_split
 from perturbfm.data.splits.split_store import SplitStore
-from perturbfm.eval.evaluator import run_baseline, run_perturbfm_v0, run_perturbfm_v1, run_perturbfm_v2, run_perturbfm_v3
+from perturbfm.eval.evaluator import (
+    run_baseline,
+    run_perturbfm_v0,
+    run_perturbfm_v1,
+    run_perturbfm_v2,
+    run_perturbfm_v2_residual,
+    run_perturbfm_v3,
+)
 from perturbfm.utils.config import config_hash
 from perturbfm.utils.hashing import stable_json_dumps
 from perturbfm.utils.seeds import set_seed
@@ -104,9 +111,45 @@ def _run_model(cfg: Dict[str, Any], data_path: str, split_hash: str, run_dir: Pa
         )
     if kind == "v2":
         params = {k: v for k, v in cfg.items() if k != "kind"}
+        if "adjacency" in params and params["adjacency"] is not None:
+            import numpy as np
+
+            adj_paths = params["adjacency"]
+            if not isinstance(adj_paths, list):
+                adj_paths = [adj_paths]
+            adjs = []
+            for path in adj_paths:
+                with np.load(path) as npz:
+                    adjs.append(npz["adjacency"])
+            params["adjacency"] = adjs
         return run_perturbfm_v2(data_path, split_hash, out_dir=str(run_dir) if run_dir else None, **params)
+    if kind == "v2_residual":
+        params = {k: v for k, v in cfg.items() if k != "kind"}
+        if "adjacency" in params and params["adjacency"] is not None:
+            import numpy as np
+
+            adj_paths = params["adjacency"]
+            if not isinstance(adj_paths, list):
+                adj_paths = [adj_paths]
+            adjs = []
+            for path in adj_paths:
+                with np.load(path) as npz:
+                    adjs.append(npz["adjacency"])
+            params["adjacency"] = adjs
+        return run_perturbfm_v2_residual(data_path, split_hash, out_dir=str(run_dir) if run_dir else None, **params)
     if kind == "v3":
         params = {k: v for k, v in cfg.items() if k != "kind"}
+        if "adjacency" in params and params["adjacency"] is not None:
+            import numpy as np
+
+            adj_paths = params["adjacency"]
+            if not isinstance(adj_paths, list):
+                adj_paths = [adj_paths]
+            adjs = []
+            for path in adj_paths:
+                with np.load(path) as npz:
+                    adjs.append(npz["adjacency"])
+            params["adjacency"] = adjs
         return run_perturbfm_v3(data_path, split_hash, out_dir=str(run_dir) if run_dir else None, **params)
     raise ValueError(f"Unknown model kind: {kind}")
 

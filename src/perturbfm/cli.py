@@ -162,6 +162,25 @@ def _add_train(subparsers: argparse._SubParsersAction) -> None:
     v2.add_argument("--out", default=None, help="Optional output run directory.")
     v2.set_defaults(func=_cmd_train_perturbfm_v2)
 
+    v2_res = train_sub.add_parser("perturbfm-v2-residual", help="Train and evaluate PerturbFM v2 residual (CGIO + additive).")
+    v2_res.add_argument("--data", required=True, help="Path to dataset artifact.")
+    v2_res.add_argument("--split", required=True, help="Split hash (must exist in split store).")
+    v2_res.add_argument("--hidden-dim", type=int, default=128)
+    v2_res.add_argument("--lr", type=float, default=1e-3)
+    v2_res.add_argument("--epochs", type=int, default=50)
+    v2_res.add_argument("--device", default="cpu")
+    v2_res.add_argument("--batch-size", type=int, default=None)
+    v2_res.add_argument("--seed", type=int, default=0)
+    v2_res.add_argument("--no-gating", action="store_true")
+    v2_res.add_argument("--no-contextual-operator", action="store_true")
+    v2_res.add_argument("--num-bases", type=int, default=4)
+    v2_res.add_argument("--adjacency", action="append", default=None, help="Path to .npz with key 'adjacency' (may be provided multiple times for multi-graph).")
+    v2_res.add_argument("--gating-mode", choices=["none", "scalar", "node", "lowrank", "mlp"], default=None)
+    v2_res.add_argument("--ensemble-size", type=int, default=1)
+    v2_res.add_argument("--conformal", action="store_true")
+    v2_res.add_argument("--out", default=None, help="Optional output run directory.")
+    v2_res.set_defaults(func=_cmd_train_perturbfm_v2_residual)
+
     v3 = train_sub.add_parser("perturbfm-v3", help="Train and evaluate PerturbFM v3 (state-dependent CGIO).")
     v3.add_argument("--data", required=True, help="Path to dataset artifact.")
     v3.add_argument("--split", required=True, help="Split hash (must exist in split store).")
@@ -442,6 +461,39 @@ def _cmd_train_perturbfm_v2(args: argparse.Namespace) -> int:
             with np.load(path) as npz:
                 adjs.append(npz["adjacency"])
     run_dir = run_perturbfm_v2(
+        data_path=args.data,
+        split_hash=args.split,
+        adjacency=adjs,
+        pert_gene_masks=None,
+        out_dir=args.out,
+        hidden_dim=args.hidden_dim,
+        lr=args.lr,
+        epochs=args.epochs,
+        device=args.device,
+        batch_size=args.batch_size,
+        seed=args.seed,
+        use_gating=not args.no_gating,
+        gating_mode=args.gating_mode,
+        contextual_operator=not args.no_contextual_operator,
+        num_bases=args.num_bases,
+        ensemble_size=args.ensemble_size,
+        conformal=args.conformal,
+    )
+    print(f"run_dir={run_dir}")
+    return 0
+
+
+def _cmd_train_perturbfm_v2_residual(args: argparse.Namespace) -> int:
+    import numpy as np
+    from perturbfm.eval.evaluator import run_perturbfm_v2_residual
+
+    adjs = None
+    if args.adjacency:
+        adjs = []
+        for path in args.adjacency:
+            with np.load(path) as npz:
+                adjs.append(npz["adjacency"])
+    run_dir = run_perturbfm_v2_residual(
         data_path=args.data,
         split_hash=args.split,
         adjacency=adjs,

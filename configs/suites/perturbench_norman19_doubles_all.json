@@ -1,0 +1,13 @@
+{
+  "datasets": [
+    {"name": "norman19_doubles_all", "path": "data/artifacts/perturbench/norman19", "splits": ["8b67643793550fa0f83b7724c85e284b240528a07d5ef285e2aabfc5e593e84b"]}
+  ],
+  "models": [
+    {"kind": "baseline", "name": "control_only"},
+    {"kind": "baseline", "name": "additive_mean"},
+    {"kind": "v2", "epochs": 1, "hidden_dim": 64, "batch_size": 256, "device": "cpu", "adjacency": "graphs/norman19_identity.npz"}
+  ],
+  "seeds": [0],
+  "score_metric": "perturbench.RMSE",
+  "score_mode": "min"
+}

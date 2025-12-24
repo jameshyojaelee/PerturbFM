@@ -47,6 +47,13 @@ def test_covariate_transfer_split_disjoint():
     assert set(split.test_idx.tolist()) == {1}
 
 
+def test_combo_generalization_split_disjoint():
+    perts = ["A", "B", "A+B", "C", "B+C"]
+    split = split_spec.combo_generalization_split(perts, holdout_combos=["A+B", "B+C"], seed=0, val_fraction=0.2)
+    assert set(split.test_idx.tolist()) == {2, 4}
+    assert set(split.train_idx).isdisjoint(split.test_idx)
+
+
 def test_context_ood_filters_unshared_perts():
     contexts = ["C0", "C0", "C1", "C1"]
     perts = ["P0", "P1", "P2", "P2"]
