@@ -56,6 +56,8 @@ def main() -> int:
     ctrl_target = adata[(adata.obs["cell_type"] == str(args.holdout_context)) & (adata.obs["condition"] == "ctrl")].copy()
     if ctrl_target.n_obs == 0:
         raise ValueError("No control cells found in holdout context.")
+    ctrl_manager = model.adata_manager.transfer_fields(ctrl_target, extend_categories=True)
+    model._register_manager_for_instance(ctrl_manager)
 
     # Predict per perturbation, use mean expression per pert
     rows = []
@@ -76,7 +78,7 @@ def main() -> int:
     pred_path.parent.mkdir(parents=True, exist_ok=True)
     adata_pred.write_h5ad(pred_path)
 
-    from scripts.external.convert_adata_pred_to_predictions import main as _convert_main  # type: ignore
+    import runpy
     import sys
 
     sys.argv = [
@@ -96,7 +98,8 @@ def main() -> int:
         "--out",
         args.out_preds,
     ]
-    _convert_main()
+    convert_path = Path(__file__).resolve().parent / "convert_adata_pred_to_predictions.py"
+    runpy.run_path(str(convert_path), run_name="__main__")
 
     print(f"Wrote predictions to {args.out_preds}")
     return 0
@@ -104,4 +107,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

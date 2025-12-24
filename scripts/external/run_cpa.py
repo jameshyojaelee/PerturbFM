@@ -40,7 +40,8 @@ def main() -> int:
     adata.obs.iloc[split.val_idx, adata.obs.columns.get_loc("split")] = "val"
     adata.obs.iloc[split.test_idx, adata.obs.columns.get_loc("split")] = "test"
 
-    # CPA setup
+    # CPA setup (allow larger combo lengths)
+    max_comb_len = max(len(str(p).split("+")) for p in adata.obs["condition"].astype(str))
     cpa.CPA.setup_anndata(
         adata,
         perturbation_key="condition",
@@ -49,6 +50,7 @@ def main() -> int:
         batch_key="batch_id",
         categorical_covariate_keys=["cell_type"],
         is_count_data=False,
+        max_comb_len=max_comb_len,
     )
 
     model = cpa.CPA(adata, split_key="split", train_split="train", valid_split="val", test_split="test")
@@ -78,4 +80,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

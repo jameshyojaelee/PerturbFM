@@ -36,6 +36,8 @@ def main() -> int:
     except Exception as exc:  # pragma: no cover
         raise RuntimeError("scanpy required for GEARS") from exc
     from gears import PertData, GEARS
+    import gears.pertdata as gears_pertdata
+    import gears.utils as gears_utils
     import anndata as ad
 
     ds = PerturbDataset.load_artifact(args.artifact)
@@ -45,6 +47,8 @@ def main() -> int:
     train_perts = sorted(set(ds.obs["pert_id"][i] for i in split.train_idx) - {"control"})
     val_perts = sorted(set(ds.obs["pert_id"][i] for i in split.val_idx) - {"control"})
     test_perts = sorted(set(ds.obs["pert_id"][i] for i in split.test_idx) - {"control"})
+    if "ctrl" not in train_perts:
+        train_perts.append("ctrl")
 
     workdir = Path(args.workdir)
     workdir.mkdir(parents=True, exist_ok=True)
@@ -59,6 +63,22 @@ def main() -> int:
             adata.X = sp.csr_matrix(adata.X)
     except Exception:
         pass
+
+    # Patch GEARS GO-graph filter to handle single-gene perturbations (no '+')
+    def _filter_pert_in_go_safe(condition, pert_names):
+        if condition == "ctrl":
+            return True
+        parts = str(condition).split("+")
+        if len(parts) == 1:
+            cond1, cond2 = parts[0], "ctrl"
+        else:
+            cond1, cond2 = parts[0], parts[1]
+        num_ctrl = (cond1 == "ctrl") + (cond2 == "ctrl")
+        num_in_perts = (cond1 in pert_names) + (cond2 in pert_names)
+        return (num_ctrl + num_in_perts) == 2
+
+    gears_utils.filter_pert_in_go = _filter_pert_in_go_safe
+    gears_pertdata.filter_pert_in_go = _filter_pert_in_go_safe
 
     pert_data = PertData(str(workdir))
     pert_data.new_data_process(dataset_name="pfm_gears", adata=adata)
@@ -93,11 +113,10 @@ def main() -> int:
     pred_path = workdir / "gears_adata_pred.h5ad"
     adata_pred.write_h5ad(pred_path)
 
-    from scripts.external.convert_adata_pred_to_predictions import main as _convert_main  # type: ignore
-
-    # Call converter via CLI-like invocation
+    import runpy
     import sys
 
+    # Call converter via CLI-like invocation
     sys.argv = [
         "convert",
         "--data",
@@ -115,7 +134,8 @@ def main() -> int:
         "--out",
         args.out_preds,
     ]
-    _convert_main()
+    convert_path = Path(__file__).resolve().parent / "convert_adata_pred_to_predictions.py"
+    runpy.run_path(str(convert_path), run_name="__main__")
 
     print(f"Wrote predictions to {args.out_preds}")
     return 0
