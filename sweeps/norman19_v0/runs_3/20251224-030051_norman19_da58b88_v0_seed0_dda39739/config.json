@@ -1,0 +1,1 @@
+{"batch_size":256,"config_hash":"ff18b291","conformal":false,"data_hash":"bb87cf02","data_path":"data/artifacts/perturbench/norman19","ensemble":1,"freeze_encoder":false,"model":{"device":"cpu","epochs":3,"hidden_dim":128,"name":"perturbfm_v0"},"pretrained_encoder":null,"seed":0,"split_hash":"da58b88d99c4133b173cf75d4998649a36974d7ec4ebd831930a10328cfe0b1b"}

@@ -1,0 +1,15 @@
+Primary metric: perturbench.RMSE (min)
+
+norman19::da58b88d99c4133b173cf75d4998649a36974d7ec4ebd831930a10328cfe0b1b
+  baseline:latent_shift: 0.274276
+  baseline:global_mean: 0.277557
+  baseline:per_perturbation_mean: 0.277557
+  baseline:ridge: 0.277557
+  v0: 0.297394
+
+Overall
+  baseline:latent_shift: 0.274276
+  baseline:global_mean: 0.277557
+  baseline:per_perturbation_mean: 0.277557
+  baseline:ridge: 0.277557
+  v0: 0.297394
