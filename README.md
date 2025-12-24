@@ -232,6 +232,20 @@ External models (for context/positioning):
 - [scGen](https://github.com/theislab/scgen)
 - [CPA](https://github.com/theislab/cpa)
 
+Comparison summary (how we position models in this repo):
+
+| Model | Core idea / inputs | Graph prior | Pert genes | Prediction space in this repo | Uncertainty | Notes |
+| --- | --- | --- | --- | --- | --- | --- |
+| Baselines (control_only/global_mean/per_pert/latent_shift/ridge) | Simple statistics or linear baselines | No | No | Delta | None | Fast sanity checks; no calibration. |
+| PerturbFM v0 | Probabilistic delta model | No | No | Delta | Native | Default internal reference. |
+| PerturbFM v1 | Graph + gating | Yes (adjacency) | Mask per-pert | Delta | Native | Requires graph + pert masks. |
+| PerturbFM v2 | CGIO (intervention) | Yes (adjacency) | obs["pert_genes"] | Delta | Native | Requires per-row pert gene lists. |
+| PerturbFM v3 | State-dependent CGIO | Yes (adjacency) | obs["pert_genes"] + X_control | Delta | Native | Uses control expression. |
+| STATE | External state model | No (in our pipeline) | No | Delta (via conversion) | Fixed (filled) | Run externally; eval via exported predictions. |
+| GEARS | Graph-based perturbation model | Yes (GO/coexpr in GEARS) | Uses pert gene list | Delta (via conversion) | Fixed (filled) | External; predictions converted from expression. |
+| scGen | Latent arithmetic on VAE | No | No | Delta (via conversion) | Fixed (filled) | External; evaluated from predicted expression. |
+| CPA | Compositional perturbation autoencoder | No | No | Delta (via conversion) | Fixed (filled) | External; evaluated from predicted expression. |
+
 Benchmarks:
 - [PerturBench](https://github.com/altoslabs/perturbench)
 - [scPerturBench](https://github.com/bm2-lab/scPerturBench)
