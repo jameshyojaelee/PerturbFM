@@ -28,6 +28,9 @@ def main() -> int:
     ap.add_argument("--hidden-dim", type=int, default=128)
     ap.add_argument("--device", default="cpu")
     ap.add_argument("--noise-std", type=float, default=0.1)
+    ap.add_argument("--objective", choices=["denoise", "masked", "both"], default="denoise")
+    ap.add_argument("--mask-prob", type=float, default=0.15)
+    ap.add_argument("--masked-weight", type=float, default=1.0)
     args = ap.parse_args()
 
     try:
@@ -46,10 +49,22 @@ def main() -> int:
     for epoch in range(args.epochs):
         for batch_idx in iter_index_batches(np.arange(ds.n_obs), batch_size=args.batch_size, seed=epoch, shuffle=True):
             x = torch.as_tensor(X[batch_idx], dtype=torch.float32, device=args.device)
-            noise = torch.randn_like(x) * args.noise_std
-            x_noisy = x + noise
-            recon, _ = model(x_noisy)
-            loss = torch.nn.functional.mse_loss(recon, x)
+            loss = 0.0
+            if args.objective in ("denoise", "both"):
+                noise = torch.randn_like(x) * args.noise_std
+                x_noisy = x + noise
+                recon, _ = model(x_noisy)
+                loss = loss + torch.nn.functional.mse_loss(recon, x)
+            if args.objective in ("masked", "both"):
+                mask = (torch.rand_like(x) < args.mask_prob).float()
+                if mask.sum() == 0:
+                    mask = torch.zeros_like(x)
+                    mask[:, 0] = 1.0
+                x_masked = x * (1.0 - mask)
+                recon_masked, _ = model(x_masked)
+                mse = (recon_masked - x) ** 2
+                masked_loss = (mse * mask).sum() / mask.sum()
+                loss = loss + args.masked_weight * masked_loss
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()

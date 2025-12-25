@@ -37,6 +37,13 @@ sbatch --partition=gpu --gres=gpu:l40s:1 --cpus-per-task=8 --mem=120G --time=24:
   scripts/slurm/sweep_array.sbatch
 ```
 
+### Current SLURM jobs (non-sweep)
+- Tahoe full manifest hashing: job `12834360` → `runs/tahoe/manifest.json`
+- Tahoe subset materialization (50k cells): job `12834361` → `data/artifacts/tahoe/subset_50k/`
+- v3a validation ablations:
+  - PerturBench Norman19: job `12834447` → `runs/scorecards/perturbench_norman19_v3a_val.json`
+  - scPerturb XieHon2017: job `12834448` → `runs/scorecards/scperturb_xiehon2017_v3a_val.json`
+
 ## Key artifacts and reports
 - Latest doubles report with v3/v3_residual:  
   `runs/reports/norman19_doubles_report_v3.md` (+ `.json`)
@@ -47,6 +54,7 @@ sbatch --partition=gpu --gres=gpu:l40s:1 --cpus-per-task=8 --mem=120G --time=24:
 - Transformer v3a path (model + trainer + evaluator + CLI).
 - Eval split support (`--eval-split val|test`) in suite runner.
 - Combo-weight residual loss (v2/v3 residual) + tests.
+- Pretraining objectives: denoising + masked-gene objective in `scripts/pretrain_cell_encoder.py`.
 - Sweep generators:
   - `scripts/generate_norman19_doubles_sweep.py`
   - `scripts/generate_norman19_graph_sweep.py`
@@ -67,8 +75,8 @@ Plan (Prompt 43):
 - Define OOD splits: cell line / drug / MoA holdouts.
 
 ## Decisions (current defaults)
-- Tahoe ingestion: local parquet shards (library choice to be finalized; likely `pyarrow` as optional dep).
-- Transformer gene set: prioritize best results; start with HVGs for iteration, confirm full-gene runs for final claims.
+- Tahoe ingestion: local parquet shards using `pyarrow` (optional extra `.[tahoe]`).
+- Transformer gene set: start with HVGs (train-only + logged) for iteration, confirm full-gene runs for final claims.
 - Foundation claim scope: **both** Tahoe OOD + transfer to PerturBench/scPerturBench.
 - Pretraining objective: start with denoising AE; consider adding masked-gene modeling if it improves.
 

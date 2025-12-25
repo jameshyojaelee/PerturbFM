@@ -223,6 +223,9 @@ Install (editable):
 python -m pip install -e ".[dev]"
 ```
 
+Optional extras:
+- Tahoe parquet ingestion: `python -m pip install -e ".[tahoe]"`
+
 Run tests:
 
 ```bash

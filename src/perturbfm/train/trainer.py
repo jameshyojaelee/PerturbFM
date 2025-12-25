@@ -17,7 +17,7 @@ from perturbfm.models.perturbfm.model import PerturbFMv0, PerturbFMv1, PerturbFM
 from perturbfm.models.perturbfm.cgio import CGIO
 from perturbfm.train.losses import gaussian_nll
 from perturbfm.train.optim import build_optimizer
-from perturbfm.data.transforms import pert_genes_to_mask
+from perturbfm.data.transforms import pert_genes_to_mask, select_hvg_train_only
 
 
 def get_baseline(name: str, **kwargs):
@@ -484,6 +484,7 @@ def fit_predict_perturbfm_v3a(
     n_heads: int = 4,
     n_layers: int = 2,
     dropout: float = 0.1,
+    hvg_count: int | None = None,
 ):
     try:
         import torch
@@ -492,6 +493,26 @@ def fit_predict_perturbfm_v3a(
 
     if dataset.X_control is None:
         raise ValueError("PerturbFMv3a requires X_control.")
+
+    hvg_idx = None
+    if hvg_count is not None and hvg_count > 0:
+        if dataset.delta is None:
+            raise ValueError("HVG selection requires delta.")
+        hvg_idx = select_hvg_train_only(dataset.delta, split.train_idx, int(hvg_count))
+
+        def _subset(arr):
+            if arr is None:
+                return None
+            return arr[:, hvg_idx]
+
+        dataset = PerturbDataset(
+            X_control=_subset(dataset.X_control),
+            X_pert=_subset(dataset.X_pert),
+            delta=_subset(dataset.delta),
+            obs=dataset.obs,
+            var=[dataset.var[i] for i in hvg_idx],
+            metadata=dict(dataset.metadata),
+        )
 
     ctx_map = _build_index(dataset.obs["context_id"])
     ctx_idx_all = np.array([ctx_map[c] for c in dataset.obs["context_id"]], dtype=np.int64)
@@ -502,6 +523,8 @@ def fit_predict_perturbfm_v3a(
         if adj_meta is None:
             raise ValueError("Adjacency required for v3a (provide via metadata or parameter).")
         adjacencies = [np.asarray(adj_meta, dtype=np.float32)]
+    if hvg_idx is not None:
+        adjacencies = [a[np.ix_(hvg_idx, hvg_idx)] for a in adjacencies]
     adj_tensors = [torch.as_tensor(a, dtype=torch.float32, device=device) for a in adjacencies]
 
     model = PerturbFMv3a(
@@ -544,6 +567,7 @@ def fit_predict_perturbfm_v3a(
         "var": var.cpu().numpy(),
         "idx": test_idx,
         "ctx_map": ctx_map,
+        "hvg_idx": hvg_idx,
     }
 
 

@@ -12,6 +12,8 @@ env/
 build/
 dist/
 data/
+!src/perturbfm/data/
+!src/perturbfm/data/*.py
 *.egg-info/
 
 runs/

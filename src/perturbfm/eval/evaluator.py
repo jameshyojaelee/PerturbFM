@@ -795,6 +795,7 @@ def run_perturbfm_v3a(
     n_heads: int = 4,
     n_layers: int = 2,
     dropout: float = 0.1,
+    hvg_count: int | None = None,
     **kwargs,
 ) -> Path:
     ds = PerturbDataset.load_artifact(data_path)
@@ -823,12 +824,19 @@ def run_perturbfm_v3a(
             n_heads=n_heads,
             n_layers=n_layers,
             dropout=dropout,
+            hvg_count=hvg_count,
             **kwargs,
         )
 
     preds = _ensemble_predictions(_single, ensemble_size) if ensemble_size > 1 else _single()
 
-    cfg = {"model": {"name": "perturbfm_v3a", **kwargs}, "ensemble": ensemble_size, "conformal": conformal, "eval_split": eval_split}
+    cfg = {
+        "model": {"name": "perturbfm_v3a", **kwargs},
+        "ensemble": ensemble_size,
+        "conformal": conformal,
+        "eval_split": eval_split,
+        "hvg_count": hvg_count,
+    }
     cfg["batch_size"] = batch_size
     cfg["seed"] = seed
     cfg["n_heads"] = n_heads
@@ -876,7 +884,14 @@ def run_perturbfm_v3a(
         "n_heads": n_heads,
         "n_layers": n_layers,
         "dropout": dropout,
+        "hvg_count": hvg_count,
     }
+    hvg_idx = preds.get("hvg_idx")
+    if hvg_idx is not None:
+        hvg_path = run_dir / "hvg_idx.json"
+        _write_json(hvg_path, {"hvg_idx": [int(i) for i in hvg_idx]})
+        config["hvg_idx_path"] = str(hvg_path)
+        config["hvg_idx_hash"] = sha256_json([int(i) for i in hvg_idx])
     _write_json(run_dir / "config.json", config)
     (run_dir / "split_hash.txt").write_text(split_hash + "\n", encoding="utf-8")
 

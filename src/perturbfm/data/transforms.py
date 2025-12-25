@@ -37,3 +37,17 @@ def pert_genes_to_mask(pert_genes: Sequence[List[str]], var: Sequence[str]) -> n
             if g in gene_to_idx:
                 mask[i, gene_to_idx[g]] = 1.0
     return mask
+
+
+def select_hvg_train_only(delta: np.ndarray, train_idx: Sequence[int], n_hvg: int) -> np.ndarray:
+    if delta is None:
+        raise ValueError("delta required for HVG selection.")
+    train_idx = np.asarray(train_idx, dtype=np.int64)
+    if train_idx.size == 0:
+        raise ValueError("train_idx is empty for HVG selection.")
+    train_delta = delta[train_idx]
+    var = np.var(train_delta, axis=0)
+    if n_hvg >= var.shape[0]:
+        return np.arange(var.shape[0], dtype=np.int64)
+    top = np.argpartition(var, -n_hvg)[-n_hvg:]
+    return np.sort(top)

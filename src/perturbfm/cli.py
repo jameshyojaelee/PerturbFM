@@ -216,6 +216,7 @@ def _add_train(subparsers: argparse._SubParsersAction) -> None:
     v3a.add_argument("--n-heads", type=int, default=4)
     v3a.add_argument("--n-layers", type=int, default=2)
     v3a.add_argument("--dropout", type=float, default=0.1)
+    v3a.add_argument("--hvg-count", type=int, default=0, help="Select HVGs (train-only) before training.")
     v3a.add_argument("--ensemble-size", type=int, default=1)
     v3a.add_argument("--conformal", action="store_true")
     v3a.add_argument("--out", default=None, help="Optional output run directory.")
@@ -615,6 +616,7 @@ def _cmd_train_perturbfm_v3a(args: argparse.Namespace) -> int:
         n_heads=args.n_heads,
         n_layers=args.n_layers,
         dropout=args.dropout,
+        hvg_count=args.hvg_count if args.hvg_count > 0 else None,
         use_gating=not args.no_gating,
         gating_mode=args.gating_mode,
         ensemble_size=args.ensemble_size,

@@ -93,6 +93,8 @@ class PerturbDataset:
             computed = self.X_pert - self.X_control
             if not np.allclose(self.delta, computed):
                 raise ValueError("delta does not match X_pert - X_control.")
+        if self.delta is None and self.X_control is None and self.X_pert is None:
+            raise ValueError("At least one of X_control, X_pert, or delta must be present.")
 
     def select(self, idx: Sequence[int]) -> "PerturbDataset":
         idx = list(idx)
