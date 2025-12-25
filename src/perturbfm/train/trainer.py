@@ -456,3 +456,84 @@ def fit_predict_perturbfm_v3(
         "idx": test_idx,
         "ctx_map": ctx_map,
     }
+
+
+def fit_predict_perturbfm_v3_residual(
+    dataset: PerturbDataset,
+    split: Split,
+    hidden_dim: int = 128,
+    lr: float = 1e-3,
+    epochs: int = 50,
+    device: str = "cpu",
+    use_gating: bool = True,
+    gating_mode: str | None = None,
+    adjacencies: List[np.ndarray] | None = None,
+    batch_size: int | None = None,
+    seed: int = 0,
+    pretrained_encoder: str | None = None,
+    freeze_encoder: bool = False,
+):
+    try:
+        import torch
+    except Exception as exc:  # pragma: no cover
+        raise RuntimeError("torch is required for PerturbFMv3 residual training") from exc
+
+    if dataset.X_control is None:
+        raise ValueError("PerturbFMv3 residual requires X_control.")
+
+    additive = AdditiveMeanBaseline()
+    additive.fit(dataset.delta, dataset.obs, split.train_idx)
+    all_idx = np.arange(dataset.n_obs, dtype=np.int64)
+    delta_add = additive.predict(dataset.obs, all_idx)
+
+    ctx_map = _build_index(dataset.obs["context_id"])
+    ctx_idx_all = np.array([ctx_map[c] for c in dataset.obs["context_id"]], dtype=np.int64)
+    pert_mask = pert_genes_to_mask(dataset.obs.get("pert_genes", [[] for _ in range(dataset.n_obs)]), dataset.var)
+
+    if adjacencies is None:
+        adj_meta = dataset.metadata.get("adjacency")
+        if adj_meta is None:
+            raise ValueError("Adjacency required for v3 residual (provide via metadata or parameter).")
+        adjacencies = [np.asarray(adj_meta, dtype=np.float32)]
+    adj_tensors = [torch.as_tensor(a, dtype=torch.float32, device=device) for a in adjacencies]
+
+    model = PerturbFMv3(
+        n_genes=dataset.n_genes,
+        num_contexts=len(ctx_map),
+        hidden_dim=hidden_dim,
+        adjacencies=adj_tensors,
+        use_gating=use_gating,
+        gating_mode=gating_mode,
+    ).to(device)
+    _load_pretrained_encoder(model, pretrained_encoder, freeze_encoder, device)
+
+    optimizer = build_optimizer(model.parameters(), lr=lr)
+    model.train()
+    for epoch in range(epochs):
+        for batch_idx in iter_index_batches(split.train_idx, batch_size=batch_size, seed=seed + epoch, shuffle=True):
+            x = torch.as_tensor(dataset.X_control[batch_idx], dtype=torch.float32, device=device)
+            pm = torch.as_tensor(pert_mask[batch_idx], dtype=torch.float32, device=device)
+            y_resid = torch.as_tensor(dataset.delta[batch_idx] - delta_add[batch_idx], dtype=torch.float32, device=device)
+            c = torch.as_tensor(ctx_idx_all[batch_idx], dtype=torch.long, device=device)
+            mean_resid, var_resid = model(x, pm, c)
+            loss = gaussian_nll(mean_resid, var_resid, y_resid)
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+    model.eval()
+    with torch.no_grad():
+        test_idx = split.test_idx
+        x = torch.as_tensor(dataset.X_control[test_idx], dtype=torch.float32, device=device)
+        pm = torch.as_tensor(pert_mask[test_idx], dtype=torch.float32, device=device)
+        c = torch.as_tensor(ctx_idx_all[test_idx], dtype=torch.long, device=device)
+        mean_resid, var_resid = model(x, pm, c)
+        mean = mean_resid + torch.as_tensor(delta_add[test_idx], dtype=torch.float32, device=device)
+
+    return {
+        "model": model,
+        "mean": mean.cpu().numpy(),
+        "var": var_resid.cpu().numpy(),
+        "idx": test_idx,
+        "ctx_map": ctx_map,
+    }

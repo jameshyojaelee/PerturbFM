@@ -13,7 +13,14 @@ import numpy as np
 from perturbfm.data.canonical import PerturbDataset
 from perturbfm.data.splits.split_spec import Split
 from perturbfm.data.splits.split_store import SplitStore
-from perturbfm.train.trainer import fit_predict_baseline, fit_predict_perturbfm_v2, fit_predict_perturbfm_v2_residual, get_baseline
+from perturbfm.train.trainer import (
+    fit_predict_baseline,
+    fit_predict_perturbfm_v2,
+    fit_predict_perturbfm_v2_residual,
+    fit_predict_perturbfm_v3,
+    fit_predict_perturbfm_v3_residual,
+    get_baseline,
+)
 
 
 def _load_config(path: Path) -> Dict[str, Any]:
@@ -79,7 +86,7 @@ def main() -> int:
             out = fit_predict_baseline(model, ds_small, split_small)
             print(f"baseline:{name} ok mean={out['mean'].shape} var={out['var'].shape}")
             continue
-        if kind in ("v2", "v2_residual"):
+        if kind in ("v2", "v2_residual", "v3", "v3_residual"):
             try:
                 import torch
             except Exception as exc:
@@ -98,14 +105,19 @@ def main() -> int:
                 "seed": int(model_cfg.get("seed", 0)),
                 "use_gating": not model_cfg.get("no_gating", False),
                 "gating_mode": model_cfg.get("gating_mode"),
-                "contextual_operator": not model_cfg.get("no_contextual_operator", False),
-                "num_bases": int(model_cfg.get("num_bases", 2)),
                 "adjacencies": adj,
             }
+            if kind in ("v2", "v2_residual"):
+                params["contextual_operator"] = not model_cfg.get("no_contextual_operator", False)
+                params["num_bases"] = int(model_cfg.get("num_bases", 2))
             if kind == "v2":
                 out = fit_predict_perturbfm_v2(ds_small, split_small, **params)
-            else:
+            elif kind == "v2_residual":
                 out = fit_predict_perturbfm_v2_residual(ds_small, split_small, **params)
+            elif kind == "v3":
+                out = fit_predict_perturbfm_v3(ds_small, split_small, **params)
+            else:
+                out = fit_predict_perturbfm_v3_residual(ds_small, split_small, **params)
             print(f"{kind} ok mean={out['mean'].shape} var={out['var'].shape}")
             continue
         print(f"Skipping unsupported kind: {kind}")

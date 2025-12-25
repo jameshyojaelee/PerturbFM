@@ -9,8 +9,10 @@
   "models": [
     {"kind": "baseline", "name": "control_only"},
     {"kind": "baseline", "name": "additive_mean"},
-    {"kind": "v2", "epochs": 1, "hidden_dim": 32, "batch_size": 1024, "device": "cuda", "adjacency": "graphs/norman19_identity.npz"},
-    {"kind": "v2_residual", "epochs": 1, "hidden_dim": 32, "batch_size": 1024, "device": "cuda", "adjacency": "graphs/norman19_identity.npz"}
+    {"kind": "v2", "epochs": 5, "hidden_dim": 32, "batch_size": 1024, "device": "cuda", "adjacency": "graphs/norman19_identity.npz"},
+    {"kind": "v2_residual", "epochs": 5, "hidden_dim": 32, "batch_size": 1024, "device": "cuda", "adjacency": "graphs/norman19_identity.npz"},
+    {"kind": "v3", "epochs": 5, "hidden_dim": 32, "batch_size": 1024, "device": "cuda", "adjacency": "graphs/norman19_identity.npz"},
+    {"kind": "v3_residual", "epochs": 5, "hidden_dim": 32, "batch_size": 1024, "device": "cuda", "adjacency": "graphs/norman19_identity.npz"}
   ],
   "seeds": [0, 1, 2],
   "score_metric": "perturbench.RMSE",

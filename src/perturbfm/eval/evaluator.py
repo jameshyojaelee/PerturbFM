@@ -24,6 +24,7 @@ from perturbfm.train.trainer import (
     fit_predict_perturbfm_v2,
     fit_predict_perturbfm_v2_residual,
     fit_predict_perturbfm_v3,
+    fit_predict_perturbfm_v3_residual,
     get_baseline,
 )
 from perturbfm.models.baselines.additive_mean import AdditiveMeanBaseline
@@ -168,6 +169,11 @@ def _predict_v3_models(models, dataset: PerturbDataset, idx: np.ndarray, ctx_map
             mean, _ = model(x, p, c)
         preds.append(mean.cpu().numpy())
     return np.mean(preds, axis=0)
+
+
+def _predict_v3_residual_models(models, dataset: PerturbDataset, idx: np.ndarray, ctx_map: dict, delta_add: np.ndarray) -> np.ndarray:
+    mean_resid = _predict_v3_models(models, dataset, idx, ctx_map)
+    return mean_resid + delta_add[idx]
 
 
 def _require_metrics_complete(metrics: Dict[str, object]) -> None:
@@ -666,6 +672,93 @@ def run_perturbfm_v3(
         "seed": seed,
         "pretrained_encoder": pretrained_encoder,
         "freeze_encoder": freeze_encoder,
+    }
+    _write_json(run_dir / "config.json", config)
+    (run_dir / "split_hash.txt").write_text(split_hash + "\n", encoding="utf-8")
+
+    report_html = render_report(metrics)
+    (run_dir / "report.html").write_text(report_html, encoding="utf-8")
+    return run_dir
+
+
+def run_perturbfm_v3_residual(
+    data_path: str,
+    split_hash: str,
+    adjacency,
+    out_dir: Optional[str] = None,
+    ensemble_size: int = 1,
+    conformal: bool = False,
+    batch_size: int | None = None,
+    seed: int = 0,
+    pretrained_encoder: str | None = None,
+    freeze_encoder: bool = False,
+    **kwargs,
+) -> Path:
+    ds = PerturbDataset.load_artifact(data_path)
+    store = SplitStore.default()
+    split = store.load(split_hash)
+    delta_add = _additive_delta_from_train(ds, split)
+
+    def _single():
+        return fit_predict_perturbfm_v3_residual(
+            ds,
+            split,
+            adjacencies=adjacency,
+            batch_size=batch_size,
+            seed=seed,
+            pretrained_encoder=pretrained_encoder,
+            freeze_encoder=freeze_encoder,
+            **kwargs,
+        )
+
+    preds = _ensemble_predictions(_single, ensemble_size) if ensemble_size > 1 else _single()
+
+    cfg = {"model": {"name": "perturbfm_v3_residual", **kwargs}, "ensemble": ensemble_size, "conformal": conformal}
+    cfg["batch_size"] = batch_size
+    cfg["seed"] = seed
+    cfg["pretrained_encoder"] = pretrained_encoder
+    cfg["freeze_encoder"] = freeze_encoder
+    cfg_hash = config_hash(cfg)
+    run_id = _default_run_id(split_hash, "perturbfm_v3_residual", cfg_hash)
+    run_dir = Path(out_dir) if out_dir else Path("runs") / run_id
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    np.savez_compressed(run_dir / "predictions.npz", mean=preds["mean"], var=preds["var"], idx=preds["idx"])
+
+    subset = ds.select(preds["idx"])
+    y_true = subset.delta
+    metrics_sc = compute_scperturbench_metrics(y_true, preds["mean"], subset.obs)
+    metrics_pb = compute_perturbench_metrics(y_true, preds["mean"], subset.obs)
+    ood_labels = subset.obs.get("is_ood") if isinstance(subset.obs, dict) else None
+    metrics_unc = compute_uncertainty_metrics(y_true, preds["mean"], preds["var"], ood_labels=ood_labels)
+    if conformal:
+        calib_idx, source = _get_calib_idx(split)
+        _assert_no_test_leak(calib_idx, split.test_idx)
+        if calib_idx.size > 0:
+            models = preds.get("models") or [preds.get("model")]
+            mean_calib = _predict_v3_residual_models(models, ds, calib_idx, preds["ctx_map"], delta_add)
+            residuals = np.abs(ds.delta[calib_idx] - mean_calib)
+            metrics_unc["conformal"] = conformal_intervals(residuals, alphas=[0.5, 0.2, 0.1, 0.05])
+            metrics_unc["calib_info"] = {"size": int(calib_idx.size), "source": source}
+
+    metrics = {"scperturbench": metrics_sc, "perturbench": metrics_pb, "uncertainty": metrics_unc}
+    _require_metrics_complete(metrics)
+    _write_json(run_dir / "metrics.json", metrics)
+    _write_json(run_dir / "calibration.json", metrics_unc)
+
+    config = {
+        "data_path": data_path,
+        "data_hash": _dataset_hash(Path(data_path)),
+        "split_hash": split_hash,
+        "config_hash": cfg_hash,
+        "model": {"name": "perturbfm_v3_residual", **kwargs},
+        "ensemble": ensemble_size,
+        "conformal": conformal,
+        "batch_size": batch_size,
+        "seed": seed,
+        "pretrained_encoder": pretrained_encoder,
+        "freeze_encoder": freeze_encoder,
+        "residual_additive": True,
     }
     _write_json(run_dir / "config.json", config)
     (run_dir / "split_hash.txt").write_text(split_hash + "\n", encoding="utf-8")
