@@ -10,7 +10,7 @@ import numpy as np
 
 from perturbfm.data.canonical import PerturbDataset
 from perturbfm.data.splits.split_store import SplitStore
-from perturbfm.data.splits.split_spec import _derive_calib_idx
+from perturbfm.data.splits.split_spec import _derive_calib_idx, Split
 from perturbfm.eval.metrics_scperturbench import compute_scperturbench_metrics
 from perturbfm.eval.metrics_perturbench import compute_perturbench_metrics
 from perturbfm.eval.uncertainty_metrics import compute_uncertainty_metrics
@@ -25,6 +25,7 @@ from perturbfm.train.trainer import (
     fit_predict_perturbfm_v2_residual,
     fit_predict_perturbfm_v3,
     fit_predict_perturbfm_v3_residual,
+    fit_predict_perturbfm_v3a,
     get_baseline,
 )
 from perturbfm.models.baselines.additive_mean import AdditiveMeanBaseline
@@ -71,6 +72,17 @@ def _get_calib_idx(split) -> tuple[np.ndarray, str]:
         return np.asarray(split.calib_idx, dtype=np.int64), "split.calib_idx"
     calib = _derive_calib_idx(split.val_idx, split.seed, split.frozen_hash or split.compute_hash())
     return calib, "derived_from_val"
+
+
+def _select_eval_idx(split, eval_split: str) -> np.ndarray:
+    if eval_split == "test":
+        return np.asarray(split.test_idx, dtype=np.int64)
+    if eval_split == "val":
+        eval_idx = np.asarray(split.val_idx, dtype=np.int64)
+        if np.intersect1d(eval_idx, split.test_idx).size > 0:
+            raise ValueError("Validation indices overlap test indices (invalid split for eval).")
+        return eval_idx
+    raise ValueError(f"Unknown eval_split: {eval_split}")
 
 
 def _assert_no_test_leak(calib_idx: np.ndarray, test_idx: np.ndarray) -> None:
@@ -206,22 +218,35 @@ def run_baseline(
     out_dir: Optional[str] = None,
     ensemble_size: int = 1,
     conformal: bool = False,
+    eval_split: str = "test",
     **kwargs,
 ) -> Path:
     ds = PerturbDataset.load_artifact(data_path)
     store = SplitStore.default()
     split = store.load(split_hash)
+    eval_idx = _select_eval_idx(split, eval_split)
+    if eval_split != "test" and conformal:
+        raise ValueError("Conformal calibration is not allowed when eval_split != 'test'.")
+    split_eval = Split(
+        train_idx=split.train_idx,
+        val_idx=split.val_idx,
+        test_idx=eval_idx,
+        calib_idx=split.calib_idx,
+        ood_axes=split.ood_axes,
+        notes=split.notes,
+        seed=split.seed,
+    )
 
     def _single():
         model = get_baseline(baseline_name, **kwargs)
-        return fit_predict_baseline(model, ds, split)
+        return fit_predict_baseline(model, ds, split_eval)
 
     if ensemble_size > 1:
         preds = _ensemble_predictions(_single, ensemble_size)
     else:
         preds = _single()
 
-    cfg = {"model": {"name": baseline_name, **kwargs}, "ensemble": ensemble_size, "conformal": conformal}
+    cfg = {"model": {"name": baseline_name, **kwargs}, "ensemble": ensemble_size, "conformal": conformal, "eval_split": eval_split}
     cfg_hash = config_hash(cfg)
     run_id = _default_run_id(split_hash, baseline_name, cfg_hash)
     run_dir = Path(out_dir) if out_dir else Path("runs") / run_id
@@ -258,6 +283,7 @@ def run_baseline(
         "model": {"name": baseline_name, **kwargs},
         "ensemble": ensemble_size,
         "conformal": conformal,
+        "eval_split": eval_split,
     }
     _write_json(run_dir / "config.json", config)
     (run_dir / "split_hash.txt").write_text(split_hash + "\n", encoding="utf-8")
@@ -274,6 +300,7 @@ def run_perturbfm_v0(
     out_dir: Optional[str] = None,
     ensemble_size: int = 1,
     conformal: bool = False,
+    eval_split: str = "test",
     batch_size: int | None = None,
     seed: int = 0,
     pretrained_encoder: str | None = None,
@@ -283,11 +310,23 @@ def run_perturbfm_v0(
     ds = PerturbDataset.load_artifact(data_path)
     store = SplitStore.default()
     split = store.load(split_hash)
+    eval_idx = _select_eval_idx(split, eval_split)
+    if eval_split != "test" and conformal:
+        raise ValueError("Conformal calibration is not allowed when eval_split != 'test'.")
+    split_eval = Split(
+        train_idx=split.train_idx,
+        val_idx=split.val_idx,
+        test_idx=eval_idx,
+        calib_idx=split.calib_idx,
+        ood_axes=split.ood_axes,
+        notes=split.notes,
+        seed=split.seed,
+    )
 
     def _single():
         return fit_predict_perturbfm_v0(
             ds,
-            split,
+            split_eval,
             batch_size=batch_size,
             seed=seed,
             pretrained_encoder=pretrained_encoder,
@@ -297,7 +336,7 @@ def run_perturbfm_v0(
 
     preds = _ensemble_predictions(_single, ensemble_size) if ensemble_size > 1 else _single()
 
-    cfg = {"model": {"name": "perturbfm_v0", **kwargs}, "ensemble": ensemble_size, "conformal": conformal}
+    cfg = {"model": {"name": "perturbfm_v0", **kwargs}, "ensemble": ensemble_size, "conformal": conformal, "eval_split": eval_split}
     cfg["batch_size"] = batch_size
     cfg["seed"] = seed
     cfg["pretrained_encoder"] = pretrained_encoder
@@ -338,6 +377,7 @@ def run_perturbfm_v0(
         "model": {"name": "perturbfm_v0", **kwargs},
         "ensemble": ensemble_size,
         "conformal": conformal,
+        "eval_split": eval_split,
         "batch_size": batch_size,
         "seed": seed,
         "pretrained_encoder": pretrained_encoder,
@@ -359,6 +399,7 @@ def run_perturbfm_v1(
     out_dir: Optional[str] = None,
     ensemble_size: int = 1,
     conformal: bool = False,
+    eval_split: str = "test",
     batch_size: int | None = None,
     seed: int = 0,
     pretrained_encoder: str | None = None,
@@ -368,11 +409,23 @@ def run_perturbfm_v1(
     ds = PerturbDataset.load_artifact(data_path)
     store = SplitStore.default()
     split = store.load(split_hash)
+    eval_idx = _select_eval_idx(split, eval_split)
+    if eval_split != "test" and conformal:
+        raise ValueError("Conformal calibration is not allowed when eval_split != 'test'.")
+    split_eval = Split(
+        train_idx=split.train_idx,
+        val_idx=split.val_idx,
+        test_idx=eval_idx,
+        calib_idx=split.calib_idx,
+        ood_axes=split.ood_axes,
+        notes=split.notes,
+        seed=split.seed,
+    )
 
     def _single():
         return fit_predict_perturbfm_v1(
             ds,
-            split,
+            split_eval,
             adjacency=adjacency,
             pert_gene_masks=pert_gene_masks,
             batch_size=batch_size,
@@ -384,7 +437,7 @@ def run_perturbfm_v1(
 
     preds = _ensemble_predictions(_single, ensemble_size) if ensemble_size > 1 else _single()
 
-    cfg = {"model": {"name": "perturbfm_v1", **kwargs}, "ensemble": ensemble_size, "conformal": conformal}
+    cfg = {"model": {"name": "perturbfm_v1", **kwargs}, "ensemble": ensemble_size, "conformal": conformal, "eval_split": eval_split}
     cfg["batch_size"] = batch_size
     cfg["seed"] = seed
     cfg["pretrained_encoder"] = pretrained_encoder
@@ -425,6 +478,7 @@ def run_perturbfm_v1(
         "model": {"name": "perturbfm_v1", **kwargs},
         "ensemble": ensemble_size,
         "conformal": conformal,
+        "eval_split": eval_split,
         "batch_size": batch_size,
         "seed": seed,
         "pretrained_encoder": pretrained_encoder,
@@ -446,6 +500,7 @@ def run_perturbfm_v2(
     out_dir: Optional[str] = None,
     ensemble_size: int = 1,
     conformal: bool = False,
+    eval_split: str = "test",
     batch_size: int | None = None,
     seed: int = 0,
     **kwargs,
@@ -453,11 +508,23 @@ def run_perturbfm_v2(
     ds = PerturbDataset.load_artifact(data_path)
     store = SplitStore.default()
     split = store.load(split_hash)
+    eval_idx = _select_eval_idx(split, eval_split)
+    if eval_split != "test" and conformal:
+        raise ValueError("Conformal calibration is not allowed when eval_split != 'test'.")
+    split_eval = Split(
+        train_idx=split.train_idx,
+        val_idx=split.val_idx,
+        test_idx=eval_idx,
+        calib_idx=split.calib_idx,
+        ood_axes=split.ood_axes,
+        notes=split.notes,
+        seed=split.seed,
+    )
 
     def _single():
         return fit_predict_perturbfm_v2(
             ds,
-            split,
+            split_eval,
             adjacencies=adjacency,
             batch_size=batch_size,
             seed=seed,
@@ -466,7 +533,7 @@ def run_perturbfm_v2(
 
     preds = _ensemble_predictions(_single, ensemble_size) if ensemble_size > 1 else _single()
 
-    cfg = {"model": {"name": "perturbfm_v2", **kwargs}, "ensemble": ensemble_size, "conformal": conformal}
+    cfg = {"model": {"name": "perturbfm_v2", **kwargs}, "ensemble": ensemble_size, "conformal": conformal, "eval_split": eval_split}
     cfg["batch_size"] = batch_size
     cfg["seed"] = seed
     cfg_hash = config_hash(cfg)
@@ -505,6 +572,7 @@ def run_perturbfm_v2(
         "model": {"name": "perturbfm_v2", **kwargs},
         "ensemble": ensemble_size,
         "conformal": conformal,
+        "eval_split": eval_split,
         "batch_size": batch_size,
         "seed": seed,
     }
@@ -524,6 +592,7 @@ def run_perturbfm_v2_residual(
     out_dir: Optional[str] = None,
     ensemble_size: int = 1,
     conformal: bool = False,
+    eval_split: str = "test",
     batch_size: int | None = None,
     seed: int = 0,
     **kwargs,
@@ -531,12 +600,24 @@ def run_perturbfm_v2_residual(
     ds = PerturbDataset.load_artifact(data_path)
     store = SplitStore.default()
     split = store.load(split_hash)
+    eval_idx = _select_eval_idx(split, eval_split)
+    if eval_split != "test" and conformal:
+        raise ValueError("Conformal calibration is not allowed when eval_split != 'test'.")
+    split_eval = Split(
+        train_idx=split.train_idx,
+        val_idx=split.val_idx,
+        test_idx=eval_idx,
+        calib_idx=split.calib_idx,
+        ood_axes=split.ood_axes,
+        notes=split.notes,
+        seed=split.seed,
+    )
     delta_add = _additive_delta_from_train(ds, split)
 
     def _single():
         return fit_predict_perturbfm_v2_residual(
             ds,
-            split,
+            split_eval,
             adjacencies=adjacency,
             batch_size=batch_size,
             seed=seed,
@@ -545,7 +626,12 @@ def run_perturbfm_v2_residual(
 
     preds = _ensemble_predictions(_single, ensemble_size) if ensemble_size > 1 else _single()
 
-    cfg = {"model": {"name": "perturbfm_v2_residual", **kwargs}, "ensemble": ensemble_size, "conformal": conformal}
+    cfg = {
+        "model": {"name": "perturbfm_v2_residual", **kwargs},
+        "ensemble": ensemble_size,
+        "conformal": conformal,
+        "eval_split": eval_split,
+    }
     cfg["batch_size"] = batch_size
     cfg["seed"] = seed
     cfg_hash = config_hash(cfg)
@@ -584,6 +670,7 @@ def run_perturbfm_v2_residual(
         "model": {"name": "perturbfm_v2_residual", **kwargs},
         "ensemble": ensemble_size,
         "conformal": conformal,
+        "eval_split": eval_split,
         "batch_size": batch_size,
         "seed": seed,
         "residual_additive": True,
@@ -603,6 +690,7 @@ def run_perturbfm_v3(
     out_dir: Optional[str] = None,
     ensemble_size: int = 1,
     conformal: bool = False,
+    eval_split: str = "test",
     batch_size: int | None = None,
     seed: int = 0,
     pretrained_encoder: str | None = None,
@@ -612,11 +700,23 @@ def run_perturbfm_v3(
     ds = PerturbDataset.load_artifact(data_path)
     store = SplitStore.default()
     split = store.load(split_hash)
+    eval_idx = _select_eval_idx(split, eval_split)
+    if eval_split != "test" and conformal:
+        raise ValueError("Conformal calibration is not allowed when eval_split != 'test'.")
+    split_eval = Split(
+        train_idx=split.train_idx,
+        val_idx=split.val_idx,
+        test_idx=eval_idx,
+        calib_idx=split.calib_idx,
+        ood_axes=split.ood_axes,
+        notes=split.notes,
+        seed=split.seed,
+    )
 
     def _single():
         return fit_predict_perturbfm_v3(
             ds,
-            split,
+            split_eval,
             adjacencies=adjacency,
             batch_size=batch_size,
             seed=seed,
@@ -627,7 +727,7 @@ def run_perturbfm_v3(
 
     preds = _ensemble_predictions(_single, ensemble_size) if ensemble_size > 1 else _single()
 
-    cfg = {"model": {"name": "perturbfm_v3", **kwargs}, "ensemble": ensemble_size, "conformal": conformal}
+    cfg = {"model": {"name": "perturbfm_v3", **kwargs}, "ensemble": ensemble_size, "conformal": conformal, "eval_split": eval_split}
     cfg["batch_size"] = batch_size
     cfg["seed"] = seed
     cfg["pretrained_encoder"] = pretrained_encoder
@@ -668,10 +768,114 @@ def run_perturbfm_v3(
         "model": {"name": "perturbfm_v3", **kwargs},
         "ensemble": ensemble_size,
         "conformal": conformal,
+        "eval_split": eval_split,
         "batch_size": batch_size,
         "seed": seed,
         "pretrained_encoder": pretrained_encoder,
         "freeze_encoder": freeze_encoder,
+    }
+    _write_json(run_dir / "config.json", config)
+    (run_dir / "split_hash.txt").write_text(split_hash + "\n", encoding="utf-8")
+
+    report_html = render_report(metrics)
+    (run_dir / "report.html").write_text(report_html, encoding="utf-8")
+    return run_dir
+
+
+def run_perturbfm_v3a(
+    data_path: str,
+    split_hash: str,
+    adjacency,
+    out_dir: Optional[str] = None,
+    ensemble_size: int = 1,
+    conformal: bool = False,
+    eval_split: str = "test",
+    batch_size: int | None = None,
+    seed: int = 0,
+    n_heads: int = 4,
+    n_layers: int = 2,
+    dropout: float = 0.1,
+    **kwargs,
+) -> Path:
+    ds = PerturbDataset.load_artifact(data_path)
+    store = SplitStore.default()
+    split = store.load(split_hash)
+    eval_idx = _select_eval_idx(split, eval_split)
+    if eval_split != "test" and conformal:
+        raise ValueError("Conformal calibration is not allowed when eval_split != 'test'.")
+    split_eval = Split(
+        train_idx=split.train_idx,
+        val_idx=split.val_idx,
+        test_idx=eval_idx,
+        calib_idx=split.calib_idx,
+        ood_axes=split.ood_axes,
+        notes=split.notes,
+        seed=split.seed,
+    )
+
+    def _single():
+        return fit_predict_perturbfm_v3a(
+            ds,
+            split_eval,
+            adjacencies=adjacency,
+            batch_size=batch_size,
+            seed=seed,
+            n_heads=n_heads,
+            n_layers=n_layers,
+            dropout=dropout,
+            **kwargs,
+        )
+
+    preds = _ensemble_predictions(_single, ensemble_size) if ensemble_size > 1 else _single()
+
+    cfg = {"model": {"name": "perturbfm_v3a", **kwargs}, "ensemble": ensemble_size, "conformal": conformal, "eval_split": eval_split}
+    cfg["batch_size"] = batch_size
+    cfg["seed"] = seed
+    cfg["n_heads"] = n_heads
+    cfg["n_layers"] = n_layers
+    cfg["dropout"] = dropout
+    cfg_hash = config_hash(cfg)
+    run_id = _default_run_id(split_hash, "perturbfm_v3a", cfg_hash)
+    run_dir = Path(out_dir) if out_dir else Path("runs") / run_id
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    np.savez_compressed(run_dir / "predictions.npz", mean=preds["mean"], var=preds["var"], idx=preds["idx"])
+
+    subset = ds.select(preds["idx"])
+    y_true = subset.delta
+    metrics_sc = compute_scperturbench_metrics(y_true, preds["mean"], subset.obs)
+    metrics_pb = compute_perturbench_metrics(y_true, preds["mean"], subset.obs)
+    ood_labels = subset.obs.get("is_ood") if isinstance(subset.obs, dict) else None
+    metrics_unc = compute_uncertainty_metrics(y_true, preds["mean"], preds["var"], ood_labels=ood_labels)
+    if conformal:
+        calib_idx, source = _get_calib_idx(split)
+        _assert_no_test_leak(calib_idx, split.test_idx)
+        if calib_idx.size > 0:
+            models = preds.get("models") or [preds.get("model")]
+            mean_calib = _predict_v3_models(models, ds, calib_idx, preds["ctx_map"])
+            residuals = np.abs(ds.delta[calib_idx] - mean_calib)
+            metrics_unc["conformal"] = conformal_intervals(residuals, alphas=[0.5, 0.2, 0.1, 0.05])
+            metrics_unc["calib_info"] = {"size": int(calib_idx.size), "source": source}
+
+    metrics = {"scperturbench": metrics_sc, "perturbench": metrics_pb, "uncertainty": metrics_unc}
+    _require_metrics_complete(metrics)
+    _write_json(run_dir / "metrics.json", metrics)
+    _write_json(run_dir / "calibration.json", metrics_unc)
+
+    config = {
+        "data_path": data_path,
+        "data_hash": _dataset_hash(Path(data_path)),
+        "split_hash": split_hash,
+        "config_hash": cfg_hash,
+        "model": {"name": "perturbfm_v3a", **kwargs},
+        "ensemble": ensemble_size,
+        "conformal": conformal,
+        "eval_split": eval_split,
+        "batch_size": batch_size,
+        "seed": seed,
+        "n_heads": n_heads,
+        "n_layers": n_layers,
+        "dropout": dropout,
     }
     _write_json(run_dir / "config.json", config)
     (run_dir / "split_hash.txt").write_text(split_hash + "\n", encoding="utf-8")
@@ -688,6 +892,7 @@ def run_perturbfm_v3_residual(
     out_dir: Optional[str] = None,
     ensemble_size: int = 1,
     conformal: bool = False,
+    eval_split: str = "test",
     batch_size: int | None = None,
     seed: int = 0,
     pretrained_encoder: str | None = None,
@@ -697,12 +902,24 @@ def run_perturbfm_v3_residual(
     ds = PerturbDataset.load_artifact(data_path)
     store = SplitStore.default()
     split = store.load(split_hash)
+    eval_idx = _select_eval_idx(split, eval_split)
+    if eval_split != "test" and conformal:
+        raise ValueError("Conformal calibration is not allowed when eval_split != 'test'.")
+    split_eval = Split(
+        train_idx=split.train_idx,
+        val_idx=split.val_idx,
+        test_idx=eval_idx,
+        calib_idx=split.calib_idx,
+        ood_axes=split.ood_axes,
+        notes=split.notes,
+        seed=split.seed,
+    )
     delta_add = _additive_delta_from_train(ds, split)
 
     def _single():
         return fit_predict_perturbfm_v3_residual(
             ds,
-            split,
+            split_eval,
             adjacencies=adjacency,
             batch_size=batch_size,
             seed=seed,
@@ -713,7 +930,12 @@ def run_perturbfm_v3_residual(
 
     preds = _ensemble_predictions(_single, ensemble_size) if ensemble_size > 1 else _single()
 
-    cfg = {"model": {"name": "perturbfm_v3_residual", **kwargs}, "ensemble": ensemble_size, "conformal": conformal}
+    cfg = {
+        "model": {"name": "perturbfm_v3_residual", **kwargs},
+        "ensemble": ensemble_size,
+        "conformal": conformal,
+        "eval_split": eval_split,
+    }
     cfg["batch_size"] = batch_size
     cfg["seed"] = seed
     cfg["pretrained_encoder"] = pretrained_encoder
@@ -754,6 +976,7 @@ def run_perturbfm_v3_residual(
         "model": {"name": "perturbfm_v3_residual", **kwargs},
         "ensemble": ensemble_size,
         "conformal": conformal,
+        "eval_split": eval_split,
         "batch_size": batch_size,
         "seed": seed,
         "pretrained_encoder": pretrained_encoder,

@@ -201,6 +201,26 @@ def _add_train(subparsers: argparse._SubParsersAction) -> None:
     v3.add_argument("--out", default=None, help="Optional output run directory.")
     v3.set_defaults(func=_cmd_train_perturbfm_v3)
 
+    v3a = train_sub.add_parser("perturbfm-v3a", help="Train and evaluate PerturbFM v3a (Transformer cell encoder).")
+    v3a.add_argument("--data", required=True, help="Path to dataset artifact.")
+    v3a.add_argument("--split", required=True, help="Split hash (must exist in split store).")
+    v3a.add_argument("--hidden-dim", type=int, default=128)
+    v3a.add_argument("--lr", type=float, default=1e-3)
+    v3a.add_argument("--epochs", type=int, default=50)
+    v3a.add_argument("--device", default="cpu")
+    v3a.add_argument("--batch-size", type=int, default=None)
+    v3a.add_argument("--seed", type=int, default=0)
+    v3a.add_argument("--no-gating", action="store_true")
+    v3a.add_argument("--gating-mode", choices=["none", "scalar", "node", "lowrank", "mlp"], default=None)
+    v3a.add_argument("--adjacency", action="append", default=None, help="Path to .npz with key 'adjacency' (may be provided multiple times for multi-graph).")
+    v3a.add_argument("--n-heads", type=int, default=4)
+    v3a.add_argument("--n-layers", type=int, default=2)
+    v3a.add_argument("--dropout", type=float, default=0.1)
+    v3a.add_argument("--ensemble-size", type=int, default=1)
+    v3a.add_argument("--conformal", action="store_true")
+    v3a.add_argument("--out", default=None, help="Optional output run directory.")
+    v3a.set_defaults(func=_cmd_train_perturbfm_v3a)
+
     v3_res = train_sub.add_parser("perturbfm-v3-residual", help="Train and evaluate PerturbFM v3 residual (state-dependent CGIO + additive).")
     v3_res.add_argument("--data", required=True, help="Path to dataset artifact.")
     v3_res.add_argument("--split", required=True, help="Split hash (must exist in split store).")
@@ -564,6 +584,39 @@ def _cmd_train_perturbfm_v3(args: argparse.Namespace) -> int:
         use_gating=not args.no_gating,
         gating_mode=args.gating_mode,
         combo_weight=args.combo_weight,
+        ensemble_size=args.ensemble_size,
+        conformal=args.conformal,
+    )
+    print(f"run_dir={run_dir}")
+    return 0
+
+
+def _cmd_train_perturbfm_v3a(args: argparse.Namespace) -> int:
+    import numpy as np
+    from perturbfm.eval.evaluator import run_perturbfm_v3a
+
+    adjs = None
+    if args.adjacency:
+        adjs = []
+        for path in args.adjacency:
+            with np.load(path) as npz:
+                adjs.append(npz["adjacency"])
+    run_dir = run_perturbfm_v3a(
+        data_path=args.data,
+        split_hash=args.split,
+        adjacency=adjs,
+        out_dir=args.out,
+        hidden_dim=args.hidden_dim,
+        lr=args.lr,
+        epochs=args.epochs,
+        device=args.device,
+        batch_size=args.batch_size,
+        seed=args.seed,
+        n_heads=args.n_heads,
+        n_layers=args.n_layers,
+        dropout=args.dropout,
+        use_gating=not args.no_gating,
+        gating_mode=args.gating_mode,
         ensemble_size=args.ensemble_size,
         conformal=args.conformal,
     )

@@ -3,6 +3,13 @@
 This repo includes **SLURM-first templates** under `scripts/slurm/`.
 They are intentionally generic; override resources at submit time (command-line flags take precedence over `#SBATCH` defaults).
 
+## Environment note (important)
+
+These templates assume the `perturbfm` package is importable on the compute node.
+Two safe options:
+1) install the repo in your environment (recommended): `python -m pip install -e .`
+2) run directly from a checkout by exporting `PYTHONPATH=./src` (the array template does this automatically)
+
 ## 1) Single-run training
 
 ```bash
@@ -11,7 +18,7 @@ sbatch \
   --gres=gpu:1 \
   --cpus-per-task=8 \
   --time=02:00:00 \
-  --export=ALL,DATA_PATH=/path/to/artifact,SPLIT_HASH=<HASH>,MODEL_KIND=baseline,BASELINE_NAME=global_mean \
+  --export=ALL,PYTHONPATH=./src,DATA_PATH=/path/to/artifact,SPLIT_HASH=<HASH>,MODEL_KIND=baseline,BASELINE_NAME=global_mean \
   scripts/slurm/train.sbatch
 ```
 
@@ -28,7 +35,7 @@ sbatch \
   --partition=<partition> \
   --cpus-per-task=4 \
   --time=00:30:00 \
-  --export=ALL,DATA_PATH=/path/to/artifact,SPLIT_HASH=<HASH>,PREDS_PATH=/path/to/predictions.npz \
+  --export=ALL,PYTHONPATH=./src,DATA_PATH=/path/to/artifact,SPLIT_HASH=<HASH>,PREDS_PATH=/path/to/predictions.npz \
   scripts/slurm/eval.sbatch
 ```
 

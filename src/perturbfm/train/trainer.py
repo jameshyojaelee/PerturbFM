@@ -13,7 +13,7 @@ from perturbfm.models.baselines.additive_mean import AdditiveMeanBaseline
 from perturbfm.models.baselines.mean_delta import MeanDeltaBaseline
 from perturbfm.models.baselines.latent_shift import LatentShiftBaseline
 from perturbfm.models.baselines.ridge_delta import RidgeDeltaBaseline
-from perturbfm.models.perturbfm.model import PerturbFMv0, PerturbFMv1, PerturbFMv3
+from perturbfm.models.perturbfm.model import PerturbFMv0, PerturbFMv1, PerturbFMv3, PerturbFMv3a
 from perturbfm.models.perturbfm.cgio import CGIO
 from perturbfm.train.losses import gaussian_nll
 from perturbfm.train.optim import build_optimizer
@@ -437,6 +437,84 @@ def fit_predict_perturbfm_v3(
         gating_mode=gating_mode,
     ).to(device)
     _load_pretrained_encoder(model, pretrained_encoder, freeze_encoder, device)
+
+    optimizer = build_optimizer(model.parameters(), lr=lr)
+    model.train()
+    for epoch in range(epochs):
+        for batch_idx in iter_index_batches(split.train_idx, batch_size=batch_size, seed=seed + epoch, shuffle=True):
+            x = torch.as_tensor(dataset.X_control[batch_idx], dtype=torch.float32, device=device)
+            pm = torch.as_tensor(pert_mask[batch_idx], dtype=torch.float32, device=device)
+            y = torch.as_tensor(dataset.delta[batch_idx], dtype=torch.float32, device=device)
+            c = torch.as_tensor(ctx_idx_all[batch_idx], dtype=torch.long, device=device)
+            mean, var = model(x, pm, c)
+            loss = gaussian_nll(mean, var, y)
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+    model.eval()
+    with torch.no_grad():
+        test_idx = split.test_idx
+        x = torch.as_tensor(dataset.X_control[test_idx], dtype=torch.float32, device=device)
+        pm = torch.as_tensor(pert_mask[test_idx], dtype=torch.float32, device=device)
+        c = torch.as_tensor(ctx_idx_all[test_idx], dtype=torch.long, device=device)
+        mean, var = model(x, pm, c)
+
+    return {
+        "model": model,
+        "mean": mean.cpu().numpy(),
+        "var": var.cpu().numpy(),
+        "idx": test_idx,
+        "ctx_map": ctx_map,
+    }
+
+
+def fit_predict_perturbfm_v3a(
+    dataset: PerturbDataset,
+    split: Split,
+    hidden_dim: int = 128,
+    lr: float = 1e-3,
+    epochs: int = 50,
+    device: str = "cpu",
+    use_gating: bool = True,
+    gating_mode: str | None = None,
+    adjacencies: List[np.ndarray] | None = None,
+    batch_size: int | None = None,
+    seed: int = 0,
+    n_heads: int = 4,
+    n_layers: int = 2,
+    dropout: float = 0.1,
+):
+    try:
+        import torch
+    except Exception as exc:  # pragma: no cover
+        raise RuntimeError("torch is required for PerturbFMv3a training") from exc
+
+    if dataset.X_control is None:
+        raise ValueError("PerturbFMv3a requires X_control.")
+
+    ctx_map = _build_index(dataset.obs["context_id"])
+    ctx_idx_all = np.array([ctx_map[c] for c in dataset.obs["context_id"]], dtype=np.int64)
+    pert_mask = pert_genes_to_mask(dataset.obs.get("pert_genes", [[] for _ in range(dataset.n_obs)]), dataset.var)
+
+    if adjacencies is None:
+        adj_meta = dataset.metadata.get("adjacency")
+        if adj_meta is None:
+            raise ValueError("Adjacency required for v3a (provide via metadata or parameter).")
+        adjacencies = [np.asarray(adj_meta, dtype=np.float32)]
+    adj_tensors = [torch.as_tensor(a, dtype=torch.float32, device=device) for a in adjacencies]
+
+    model = PerturbFMv3a(
+        n_genes=dataset.n_genes,
+        num_contexts=len(ctx_map),
+        hidden_dim=hidden_dim,
+        adjacencies=adj_tensors,
+        n_heads=n_heads,
+        n_layers=n_layers,
+        dropout=dropout,
+        use_gating=use_gating,
+        gating_mode=gating_mode,
+    ).to(device)
 
     optimizer = build_optimizer(model.parameters(), lr=lr)
     model.train()

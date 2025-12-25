@@ -42,6 +42,7 @@ from perturbfm.eval.evaluator import (
     run_perturbfm_v2_residual,
     run_perturbfm_v3,
     run_perturbfm_v3_residual,
+    run_perturbfm_v3a,
 )
 from perturbfm.utils.config import config_hash
 from perturbfm.utils.hashing import stable_json_dumps
@@ -77,15 +78,22 @@ def _run_id(dataset: str, split_hash: str, model_label: str, seed: int, cfg_hash
     return f"{ts}_{safe_ds}_{split_hash[:7]}_{safe_model}_seed{seed}_{cfg_hash}"
 
 
-def _run_model(cfg: Dict[str, Any], data_path: str, split_hash: str, run_dir: Path | None) -> Path:
+def _run_model(cfg: Dict[str, Any], data_path: str, split_hash: str, run_dir: Path | None, eval_split: str) -> Path:
     kind = cfg.get("kind")
     if kind == "baseline":
         name = cfg["name"]
         params = {k: v for k, v in cfg.items() if k not in ("kind", "name")}
-        return run_baseline(data_path, split_hash, baseline_name=name, out_dir=str(run_dir) if run_dir else None, **params)
+        return run_baseline(
+            data_path,
+            split_hash,
+            baseline_name=name,
+            out_dir=str(run_dir) if run_dir else None,
+            eval_split=eval_split,
+            **params,
+        )
     if kind == "v0":
         params = {k: v for k, v in cfg.items() if k != "kind"}
-        return run_perturbfm_v0(data_path, split_hash, out_dir=str(run_dir) if run_dir else None, **params)
+        return run_perturbfm_v0(data_path, split_hash, out_dir=str(run_dir) if run_dir else None, eval_split=eval_split, **params)
     if kind == "v1":
         import numpy as np
         import json as pyjson
@@ -108,6 +116,7 @@ def _run_model(cfg: Dict[str, Any], data_path: str, split_hash: str, run_dir: Pa
             adjacency=adjacency,
             pert_gene_masks=pert_gene_masks,
             out_dir=str(run_dir) if run_dir else None,
+            eval_split=eval_split,
             **params,
         )
     if kind == "v2":
@@ -123,7 +132,7 @@ def _run_model(cfg: Dict[str, Any], data_path: str, split_hash: str, run_dir: Pa
                 with np.load(path) as npz:
                     adjs.append(npz["adjacency"])
             params["adjacency"] = adjs
-        return run_perturbfm_v2(data_path, split_hash, out_dir=str(run_dir) if run_dir else None, **params)
+        return run_perturbfm_v2(data_path, split_hash, out_dir=str(run_dir) if run_dir else None, eval_split=eval_split, **params)
     if kind == "v2_residual":
         params = {k: v for k, v in cfg.items() if k != "kind"}
         if "adjacency" in params and params["adjacency"] is not None:
@@ -137,7 +146,23 @@ def _run_model(cfg: Dict[str, Any], data_path: str, split_hash: str, run_dir: Pa
                 with np.load(path) as npz:
                     adjs.append(npz["adjacency"])
             params["adjacency"] = adjs
-        return run_perturbfm_v2_residual(data_path, split_hash, out_dir=str(run_dir) if run_dir else None, **params)
+        return run_perturbfm_v2_residual(
+            data_path, split_hash, out_dir=str(run_dir) if run_dir else None, eval_split=eval_split, **params
+        )
+    if kind == "v3a":
+        params = {k: v for k, v in cfg.items() if k != "kind"}
+        if "adjacency" in params and params["adjacency"] is not None:
+            import numpy as np
+
+            adj_paths = params["adjacency"]
+            if not isinstance(adj_paths, list):
+                adj_paths = [adj_paths]
+            adjs = []
+            for path in adj_paths:
+                with np.load(path) as npz:
+                    adjs.append(npz["adjacency"])
+            params["adjacency"] = adjs
+        return run_perturbfm_v3a(data_path, split_hash, out_dir=str(run_dir) if run_dir else None, eval_split=eval_split, **params)
     if kind == "v3":
         params = {k: v for k, v in cfg.items() if k != "kind"}
         if "adjacency" in params and params["adjacency"] is not None:
@@ -151,7 +176,7 @@ def _run_model(cfg: Dict[str, Any], data_path: str, split_hash: str, run_dir: Pa
                 with np.load(path) as npz:
                     adjs.append(npz["adjacency"])
             params["adjacency"] = adjs
-        return run_perturbfm_v3(data_path, split_hash, out_dir=str(run_dir) if run_dir else None, **params)
+        return run_perturbfm_v3(data_path, split_hash, out_dir=str(run_dir) if run_dir else None, eval_split=eval_split, **params)
     if kind == "v3_residual":
         params = {k: v for k, v in cfg.items() if k != "kind"}
         if "adjacency" in params and params["adjacency"] is not None:
@@ -165,7 +190,9 @@ def _run_model(cfg: Dict[str, Any], data_path: str, split_hash: str, run_dir: Pa
                 with np.load(path) as npz:
                     adjs.append(npz["adjacency"])
             params["adjacency"] = adjs
-        return run_perturbfm_v3_residual(data_path, split_hash, out_dir=str(run_dir) if run_dir else None, **params)
+        return run_perturbfm_v3_residual(
+            data_path, split_hash, out_dir=str(run_dir) if run_dir else None, eval_split=eval_split, **params
+        )
     raise ValueError(f"Unknown model kind: {kind}")
 
 
@@ -276,6 +303,7 @@ def main() -> int:
     ap.add_argument("--fail-fast", action="store_true", help="Stop on first failure.")
     ap.add_argument("--score-metric", help="Override config score metric (panel.key).")
     ap.add_argument("--score-mode", choices=["min", "max"], help="Override config score mode.")
+    ap.add_argument("--eval-split", choices=["test", "val"], default="test", help="Evaluate on split.test_idx or split.val_idx.")
     args = ap.parse_args()
 
     if args.split_dir:
@@ -320,9 +348,10 @@ def main() -> int:
             "config_hash": cfg_hash,
             "git_commit": git_commit,
             "command": cmd,
+            "eval_split": args.eval_split,
         }
         try:
-            run_path = _run_model(run_cfg["model"], run_cfg["data_path"], run_cfg["split_hash"], run_dir)
+            run_path = _run_model(run_cfg["model"], run_cfg["data_path"], run_cfg["split_hash"], run_dir, args.eval_split)
             metrics_path = Path(run_path) / "metrics.json"
             metrics = json.loads(metrics_path.read_text()) if metrics_path.exists() else {}
             record.update({"status": "ok", "run_dir": str(run_path), "metrics": metrics})
@@ -332,9 +361,12 @@ def main() -> int:
                 raise
         records.append(record)
 
-    summary_path = out_path.parent / "runs_summary.json"
+    summary_path = out_path.parent / f"runs_summary_{args.eval_split}.json"
     summary_payload = {"generated_at": datetime.now(timezone.utc).isoformat(), "runs": records}
     summary_path.write_text(stable_json_dumps(summary_payload), encoding="utf-8")
+    if args.eval_split == "test":
+        legacy_path = out_path.parent / "runs_summary.json"
+        legacy_path.write_text(stable_json_dumps(summary_payload), encoding="utf-8")
 
     metric = args.score_metric or config.get("score_metric", "perturbench.RMSE")
     mode = args.score_mode or config.get("score_mode", "min")

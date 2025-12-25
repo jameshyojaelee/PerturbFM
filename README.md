@@ -36,6 +36,17 @@ Known gaps / “not done yet”:
 - Official metric parity vs external reference scripts (requires local `third_party/` repos; use `scripts/validate_metrics.py`).
 - Training control/reporting: early stopping on OOD validation + richer reports (TODO).
 
+## Roadmap / research plan
+
+The living experimental roadmap is tracked in `docs/prompts.md`. Current “Phase 2” directions include:
+- preventing test-peeking during sweeps (validation-only selection rails)
+- Transformer cell encoder ablations (planned `perturbfm-v3a`, Gaussian head)
+- optional diffusion head experiments (only if Transformer passes go/no-go)
+- Tahoe-100M pretraining + immutable evaluation subsets (local raw data lives outside the repo)
+- cross-regime “validation suite” with negative controls and data-efficiency curves
+
+If you’re running long sweeps, prefer SLURM + array jobs (`docs/slurm.md`).
+
 ## Big picture (pipeline)
 
 ![PerturbFM pipeline diagram](docs/diagrams/pub/pipeline_lane.svg)
@@ -61,6 +72,8 @@ If you can’t see the image above for some reason, read it as:
   - predict delta via a **context-conditioned low-rank operator**
 - **PerturbFM v3**
   - conditions on `x_control` to model state-dependent perturbation effects
+- **PerturbFM v3a**
+  - v3 with a Transformer-based cell encoder (Gaussian head)
 
 CGIO sketch:
 
@@ -241,6 +254,7 @@ Comparison summary (how we position models in this repo):
 | PerturbFM v1 | Graph + gating | Yes (adjacency) | Mask per-pert | Delta | Native | Requires graph + pert masks. |
 | PerturbFM v2 | CGIO (intervention) | Yes (adjacency) | obs["pert_genes"] | Delta | Native | Requires per-row pert gene lists. |
 | PerturbFM v3 | State-dependent CGIO | Yes (adjacency) | obs["pert_genes"] + X_control | Delta | Native | Uses control expression. |
+| PerturbFM v3a | Transformer cell encoder + CGIO | Yes (adjacency) | obs["pert_genes"] + X_control | Delta | Native | Transformer encoder; Gaussian head. |
 | STATE | External state model | No (in our pipeline) | No | Delta (via conversion) | Fixed (filled) | Run externally; eval via exported predictions. |
 | GEARS | Graph-based perturbation model | Yes (GO/coexpr in GEARS) | Uses pert gene list | Delta (via conversion) | Fixed (filled) | External; predictions converted from expression. |
 | scGen | Latent arithmetic on VAE | No | No | Delta (via conversion) | Fixed (filled) | External; evaluated from predicted expression. |
