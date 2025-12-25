@@ -1,0 +1,18 @@
+{
+  "datasets": [
+    {
+      "name": "norman19_doubles_partial",
+      "path": "data/artifacts/perturbench/norman19",
+      "splits": ["25e12ff5c7a6b67dc47c85d8ece8ac19bdd2d86141b403c8525972c654beb0c8"]
+    }
+  ],
+  "models": [
+    {"kind": "baseline", "name": "control_only"},
+    {"kind": "baseline", "name": "additive_mean"},
+    {"kind": "v2", "epochs": 1, "hidden_dim": 32, "batch_size": 1024, "device": "cuda", "adjacency": "graphs/norman19_identity.npz"},
+    {"kind": "v2_residual", "epochs": 1, "hidden_dim": 32, "batch_size": 1024, "device": "cuda", "adjacency": "graphs/norman19_identity.npz"}
+  ],
+  "seeds": [0, 1, 2],
+  "score_metric": "perturbench.RMSE",
+  "score_mode": "min"
+}
