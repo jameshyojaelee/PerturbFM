@@ -176,6 +176,7 @@ def _add_train(subparsers: argparse._SubParsersAction) -> None:
     v2_res.add_argument("--num-bases", type=int, default=4)
     v2_res.add_argument("--adjacency", action="append", default=None, help="Path to .npz with key 'adjacency' (may be provided multiple times for multi-graph).")
     v2_res.add_argument("--gating-mode", choices=["none", "scalar", "node", "lowrank", "mlp"], default=None)
+    v2_res.add_argument("--combo-weight", type=float, default=1.0, help="Loss weight for multi-gene combo rows.")
     v2_res.add_argument("--ensemble-size", type=int, default=1)
     v2_res.add_argument("--conformal", action="store_true")
     v2_res.add_argument("--out", default=None, help="Optional output run directory.")
@@ -214,6 +215,7 @@ def _add_train(subparsers: argparse._SubParsersAction) -> None:
     v3_res.add_argument("--no-gating", action="store_true")
     v3_res.add_argument("--gating-mode", choices=["none", "scalar", "node", "lowrank", "mlp"], default=None)
     v3_res.add_argument("--adjacency", action="append", default=None, help="Path to .npz with key 'adjacency' (may be provided multiple times for multi-graph).")
+    v3_res.add_argument("--combo-weight", type=float, default=1.0, help="Loss weight for multi-gene combo rows.")
     v3_res.add_argument("--ensemble-size", type=int, default=1)
     v3_res.add_argument("--conformal", action="store_true")
     v3_res.add_argument("--out", default=None, help="Optional output run directory.")
@@ -462,6 +464,7 @@ def _cmd_train_perturbfm_v1(args: argparse.Namespace) -> int:
         use_graph=not args.no_graph,
         use_gating=not args.no_gating,
         gating_mode=args.gating_mode,
+        combo_weight=args.combo_weight,
         ensemble_size=args.ensemble_size,
         conformal=args.conformal,
     )
@@ -560,6 +563,7 @@ def _cmd_train_perturbfm_v3(args: argparse.Namespace) -> int:
         freeze_encoder=args.freeze_encoder,
         use_gating=not args.no_gating,
         gating_mode=args.gating_mode,
+        combo_weight=args.combo_weight,
         ensemble_size=args.ensemble_size,
         conformal=args.conformal,
     )

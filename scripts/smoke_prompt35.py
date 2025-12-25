@@ -110,6 +110,8 @@ def main() -> int:
             if kind in ("v2", "v2_residual"):
                 params["contextual_operator"] = not model_cfg.get("no_contextual_operator", False)
                 params["num_bases"] = int(model_cfg.get("num_bases", 2))
+            if "combo_weight" in model_cfg:
+                params["combo_weight"] = float(model_cfg["combo_weight"])
             if kind == "v2":
                 out = fit_predict_perturbfm_v2(ds_small, split_small, **params)
             elif kind == "v2_residual":

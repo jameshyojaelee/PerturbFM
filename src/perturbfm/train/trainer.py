@@ -320,6 +320,7 @@ def fit_predict_perturbfm_v2_residual(
     adjacencies: List[np.ndarray] | None = None,
     batch_size: int | None = None,
     seed: int = 0,
+    combo_weight: float = 1.0,
 ):
     try:
         import torch
@@ -334,6 +335,8 @@ def fit_predict_perturbfm_v2_residual(
     ctx_map = _build_index(dataset.obs["context_id"])
     ctx_idx_all = np.array([ctx_map[c] for c in dataset.obs["context_id"]], dtype=np.int64)
     pert_mask = pert_genes_to_mask(dataset.obs.get("pert_genes", [[] for _ in range(dataset.n_obs)]), dataset.var)
+    pert_genes = dataset.obs.get("pert_genes", [[] for _ in range(dataset.n_obs)])
+    combo_mask = np.array([len(g) >= 2 for g in pert_genes], dtype=np.bool_)
 
     if adjacencies is None:
         adj_meta = dataset.metadata.get("adjacency")
@@ -361,7 +364,15 @@ def fit_predict_perturbfm_v2_residual(
             y_resid = torch.as_tensor(dataset.delta[batch_idx] - delta_add[batch_idx], dtype=torch.float32, device=device)
             c = torch.as_tensor(ctx_idx_all[batch_idx], dtype=torch.long, device=device)
             mean_resid, var_resid = model(pm, c)
-            loss = gaussian_nll(mean_resid, var_resid, y_resid)
+            var_resid = torch.clamp(var_resid, min=1e-6)
+            loss_per_gene = 0.5 * (torch.log(var_resid) + (y_resid - mean_resid) ** 2 / var_resid)
+            loss_per_sample = loss_per_gene.mean(dim=1)
+            if combo_weight != 1.0:
+                weights = torch.ones_like(loss_per_sample)
+                weights[torch.as_tensor(combo_mask[batch_idx], device=device)] = combo_weight
+                loss = (loss_per_sample * weights).mean()
+            else:
+                loss = loss_per_sample.mean()
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
@@ -472,6 +483,7 @@ def fit_predict_perturbfm_v3_residual(
     seed: int = 0,
     pretrained_encoder: str | None = None,
     freeze_encoder: bool = False,
+    combo_weight: float = 1.0,
 ):
     try:
         import torch
@@ -489,6 +501,8 @@ def fit_predict_perturbfm_v3_residual(
     ctx_map = _build_index(dataset.obs["context_id"])
     ctx_idx_all = np.array([ctx_map[c] for c in dataset.obs["context_id"]], dtype=np.int64)
     pert_mask = pert_genes_to_mask(dataset.obs.get("pert_genes", [[] for _ in range(dataset.n_obs)]), dataset.var)
+    pert_genes = dataset.obs.get("pert_genes", [[] for _ in range(dataset.n_obs)])
+    combo_mask = np.array([len(g) >= 2 for g in pert_genes], dtype=np.bool_)
 
     if adjacencies is None:
         adj_meta = dataset.metadata.get("adjacency")
@@ -516,7 +530,15 @@ def fit_predict_perturbfm_v3_residual(
             y_resid = torch.as_tensor(dataset.delta[batch_idx] - delta_add[batch_idx], dtype=torch.float32, device=device)
             c = torch.as_tensor(ctx_idx_all[batch_idx], dtype=torch.long, device=device)
             mean_resid, var_resid = model(x, pm, c)
-            loss = gaussian_nll(mean_resid, var_resid, y_resid)
+            var_resid = torch.clamp(var_resid, min=1e-6)
+            loss_per_gene = 0.5 * (torch.log(var_resid) + (y_resid - mean_resid) ** 2 / var_resid)
+            loss_per_sample = loss_per_gene.mean(dim=1)
+            if combo_weight != 1.0:
+                weights = torch.ones_like(loss_per_sample)
+                weights[torch.as_tensor(combo_mask[batch_idx], device=device)] = combo_weight
+                loss = (loss_per_sample * weights).mean()
+            else:
+                loss = loss_per_sample.mean()
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()

@@ -19,10 +19,14 @@ if [[ -z "$CONFIG_PATH" ]]; then
   exit 1
 fi
 
-RUN_ROOT="${OUT_ROOT}/runs_${SLURM_ARRAY_TASK_ID}"
-OUT_SCORECARD="${OUT_ROOT}/scorecard_${SLURM_ARRAY_TASK_ID}.json"
+TASK_ROOT="${OUT_ROOT}/task_${SLURM_ARRAY_TASK_ID}"
+mkdir -p "$TASK_ROOT"
+RUN_ROOT="${TASK_ROOT}/runs"
+OUT_SCORECARD="${TASK_ROOT}/scorecard.json"
+cp "$CONFIG_PATH" "${TASK_ROOT}/config.json"
 
 PYTHON="${PYTHON:-python3}"
+export PYTHONPATH="${PYTHONPATH:-./src}"
 
 "$PYTHON" scripts/run_perturbench_suite.py \
   --config "$CONFIG_PATH" \
