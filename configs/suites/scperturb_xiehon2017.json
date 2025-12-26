@@ -10,10 +10,18 @@
     {"kind": "baseline", "name": "ridge", "alpha": 1.0},
     {"kind": "v0", "epochs": 1, "hidden_dim": 64, "batch_size": 128, "device": "cpu"},
     {
-      "kind": "v3a",
+      "kind": "v3",
       "epochs": 1,
       "hidden_dim": 64,
       "batch_size": 128,
+      "device": "cpu",
+      "adjacency": "graphs/xiehon2017_identity.npz"
+    },
+    {
+      "kind": "v3a",
+      "epochs": 1,
+      "hidden_dim": 64,
+      "batch_size": 16,
       "device": "cpu",
       "adjacency": "graphs/xiehon2017_identity.npz",
       "n_heads": 4,
@@ -25,7 +33,7 @@
       "kind": "v3a",
       "epochs": 1,
       "hidden_dim": 64,
-      "batch_size": 128,
+      "batch_size": 8,
       "device": "cpu",
       "adjacency": "graphs/xiehon2017_identity.npz",
       "n_heads": 4,

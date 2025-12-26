@@ -37,18 +37,25 @@ sbatch --partition=gpu --gres=gpu:l40s:1 --cpus-per-task=8 --mem=120G --time=24:
   scripts/slurm/sweep_array.sbatch
 ```
 
-### Current SLURM jobs (non-sweep)
-- Tahoe full manifest hashing: job `12834360` → `runs/tahoe/manifest.json`
-- Tahoe subset materialization (50k cells): job `12834361` → `data/artifacts/tahoe/subset_50k/`
+### Recent SLURM jobs (non-sweep)
+- Tahoe full manifest hashing:
+  - Job `12834360` failed (missing `PYTHONPATH`: `ModuleNotFoundError: perturbfm`).
+  - Job `12834776` succeeded → `runs/tahoe/manifest.json` (3388 shards).
+- Tahoe subset materialization (50k cells): job `12834361` failed (`ValueError` in `tahoe_materialize_subset.py`, inhomogeneous array); no subset dir created.
 - v3a validation ablations:
-  - PerturBench Norman19: job `12834447` → `runs/scorecards/perturbench_norman19_v3a_val.json`
-  - scPerturb XieHon2017: job `12834448` → `runs/scorecards/scperturb_xiehon2017_v3a_val.json`
+  - PerturBench Norman19: job `12834447` completed, but v3a run failed OOM (~573GB alloc); scorecard has baselines + v0 only.  
+    Output: `runs/scorecards/perturbench_norman19_v3a_val.json` (+ `runs/scorecards/runs_summary_val.json`)
+  - scPerturb XieHon2017: job `12834448` completed; scorecard has baselines + v0 only.  
+    Output: `runs/scorecards/scperturb_xiehon2017_v3a_val.json`
 
 ## Key artifacts and reports
 - Latest doubles report with v3/v3_residual:  
   `runs/reports/norman19_doubles_report_v3.md` (+ `.json`)
 - Baseline doubles report:  
   `runs/reports/norman19_doubles_report.md`
+- Latest Norman19 finalists (val → test):
+  - `runs/scorecards/finalists_norman19.json`
+  - `runs/finalists/norman19_test/` (finalist_0/1 baselines + finalist_2 v0)
 
 ## New tooling added recently
 - Transformer v3a path (model + trainer + evaluator + CLI).
