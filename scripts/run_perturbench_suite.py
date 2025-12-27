@@ -45,6 +45,7 @@ from perturbfm.eval.evaluator import (
     run_perturbfm_v3a,
 )
 from perturbfm.utils.config import config_hash
+from perturbfm.utils.graph_io import load_graph_npz
 from perturbfm.utils.hashing import stable_json_dumps
 from perturbfm.utils.seeds import set_seed
 
@@ -100,8 +101,9 @@ def _run_model(cfg: Dict[str, Any], data_path: str, split_hash: str, run_dir: Pa
 
         if "adjacency" not in cfg or "pert_masks" not in cfg:
             raise ValueError("v1 requires 'adjacency' and 'pert_masks' in config.")
-        with np.load(cfg["adjacency"]) as npz:
-            adjacency = npz["adjacency"]
+        adjacency = load_graph_npz(cfg["adjacency"])
+        if isinstance(adjacency, dict):
+            raise ValueError("v1 requires dense adjacency with key 'adjacency' in the .npz file.")
         pert_map = pyjson.loads(Path(cfg["pert_masks"]).read_text(encoding="utf-8"))
         pert_gene_masks = {}
         for pert_id, indices in pert_map.items():
@@ -129,8 +131,7 @@ def _run_model(cfg: Dict[str, Any], data_path: str, split_hash: str, run_dir: Pa
                 adj_paths = [adj_paths]
             adjs = []
             for path in adj_paths:
-                with np.load(path) as npz:
-                    adjs.append(npz["adjacency"])
+                adjs.append(load_graph_npz(path))
             params["adjacency"] = adjs
         return run_perturbfm_v2(data_path, split_hash, out_dir=str(run_dir) if run_dir else None, eval_split=eval_split, **params)
     if kind == "v2_residual":
@@ -143,8 +144,7 @@ def _run_model(cfg: Dict[str, Any], data_path: str, split_hash: str, run_dir: Pa
                 adj_paths = [adj_paths]
             adjs = []
             for path in adj_paths:
-                with np.load(path) as npz:
-                    adjs.append(npz["adjacency"])
+                adjs.append(load_graph_npz(path))
             params["adjacency"] = adjs
         return run_perturbfm_v2_residual(
             data_path, split_hash, out_dir=str(run_dir) if run_dir else None, eval_split=eval_split, **params
@@ -159,8 +159,7 @@ def _run_model(cfg: Dict[str, Any], data_path: str, split_hash: str, run_dir: Pa
                 adj_paths = [adj_paths]
             adjs = []
             for path in adj_paths:
-                with np.load(path) as npz:
-                    adjs.append(npz["adjacency"])
+                adjs.append(load_graph_npz(path))
             params["adjacency"] = adjs
         return run_perturbfm_v3a(data_path, split_hash, out_dir=str(run_dir) if run_dir else None, eval_split=eval_split, **params)
     if kind == "v3":
@@ -173,8 +172,7 @@ def _run_model(cfg: Dict[str, Any], data_path: str, split_hash: str, run_dir: Pa
                 adj_paths = [adj_paths]
             adjs = []
             for path in adj_paths:
-                with np.load(path) as npz:
-                    adjs.append(npz["adjacency"])
+                adjs.append(load_graph_npz(path))
             params["adjacency"] = adjs
         return run_perturbfm_v3(data_path, split_hash, out_dir=str(run_dir) if run_dir else None, eval_split=eval_split, **params)
     if kind == "v3_residual":
@@ -187,8 +185,7 @@ def _run_model(cfg: Dict[str, Any], data_path: str, split_hash: str, run_dir: Pa
                 adj_paths = [adj_paths]
             adjs = []
             for path in adj_paths:
-                with np.load(path) as npz:
-                    adjs.append(npz["adjacency"])
+                adjs.append(load_graph_npz(path))
             params["adjacency"] = adjs
         return run_perturbfm_v3_residual(
             data_path, split_hash, out_dir=str(run_dir) if run_dir else None, eval_split=eval_split, **params

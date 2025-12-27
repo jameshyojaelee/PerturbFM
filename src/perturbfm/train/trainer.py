@@ -93,6 +93,62 @@ def _build_index(values):
     return {v: i for i, v in enumerate(uniq)}
 
 
+def _coerce_adjacencies(adjacencies, dataset: PerturbDataset, *, name: str) -> list:
+    if adjacencies is None:
+        adj_meta = dataset.metadata.get("adjacency")
+        if adj_meta is None:
+            raise ValueError(f"Adjacency required for {name} (provide via metadata or parameter).")
+        adjacencies = [np.asarray(adj_meta, dtype=np.float32)]
+    return adjacencies
+
+
+def _adjacency_to_tensor(adjacency, device: str):
+    import torch
+
+    if isinstance(adjacency, dict):
+        edge_index = torch.as_tensor(adjacency["edge_index"], dtype=torch.long, device=device)
+        edge_weight = adjacency.get("edge_weight")
+        if edge_weight is None:
+            edge_weight = np.ones(edge_index.shape[1], dtype=np.float32)
+        edge_weight = torch.as_tensor(edge_weight, dtype=torch.float32, device=device)
+        num_nodes = adjacency.get("num_nodes")
+        if num_nodes is None:
+            num_nodes = int(edge_index.max().item()) + 1 if edge_index.numel() > 0 else 0
+        return torch.sparse_coo_tensor(edge_index, edge_weight, (num_nodes, num_nodes), device=device)
+    if hasattr(adjacency, "layout"):
+        tensor = adjacency
+        if tensor.is_sparse:
+            return tensor.coalesce().to(device)
+        return tensor.to(device)
+    arr = np.asarray(adjacency, dtype=np.float32)
+    return torch.as_tensor(arr, dtype=torch.float32, device=device)
+
+
+def _subset_sparse_adjacency(adjacency: dict, hvg_idx: np.ndarray) -> dict:
+    edge_index = np.asarray(adjacency["edge_index"], dtype=np.int64)
+    edge_weight = np.asarray(adjacency.get("edge_weight"), dtype=np.float32) if adjacency.get("edge_weight") is not None else None
+    if edge_index.size == 0:
+        if edge_weight is None:
+            edge_weight = np.zeros((0,), dtype=np.float32)
+        return {"edge_index": edge_index.reshape(2, 0), "edge_weight": edge_weight[:0], "num_nodes": int(hvg_idx.size)}
+    num_nodes = adjacency.get("num_nodes")
+    if num_nodes is None:
+        max_hvg = int(hvg_idx.max()) if hvg_idx.size else 0
+        num_nodes = int(max(edge_index.max(), max_hvg)) + 1
+    mapper = np.full(int(num_nodes), -1, dtype=np.int64)
+    mapper[hvg_idx] = np.arange(hvg_idx.size, dtype=np.int64)
+    src = edge_index[0]
+    dst = edge_index[1]
+    src_new = mapper[src]
+    dst_new = mapper[dst]
+    keep = (src_new >= 0) & (dst_new >= 0)
+    edge_index_new = np.stack([src_new[keep], dst_new[keep]], axis=0)
+    if edge_weight is None:
+        edge_weight_new = np.ones(edge_index_new.shape[1], dtype=np.float32)
+    else:
+        edge_weight_new = edge_weight[keep]
+    return {"edge_index": edge_index_new, "edge_weight": edge_weight_new, "num_nodes": int(hvg_idx.size)}
+
 def fit_predict_perturbfm_v0(
     dataset: PerturbDataset,
     split: Split,
@@ -259,12 +315,8 @@ def fit_predict_perturbfm_v2(
     ctx_idx_all = np.array([ctx_map[c] for c in dataset.obs["context_id"]], dtype=np.int64)
     pert_mask = pert_genes_to_mask(dataset.obs.get("pert_genes", [[] for _ in range(dataset.n_obs)]), dataset.var)
 
-    if adjacencies is None:
-        adj_meta = dataset.metadata.get("adjacency")
-        if adj_meta is None:
-            raise ValueError("Adjacency required for CGIO (provide via metadata or parameter).")
-        adjacencies = [np.asarray(adj_meta, dtype=np.float32)]
-    adj_tensors = [torch.as_tensor(a, dtype=torch.float32, device=device) for a in adjacencies]
+    adjacencies = _coerce_adjacencies(adjacencies, dataset, name="CGIO")
+    adj_tensors = [_adjacency_to_tensor(a, device=device) for a in adjacencies]
 
     model = CGIO(
         n_genes=dataset.n_genes,
@@ -338,12 +390,8 @@ def fit_predict_perturbfm_v2_residual(
     pert_genes = dataset.obs.get("pert_genes", [[] for _ in range(dataset.n_obs)])
     combo_mask = np.array([len(g) >= 2 for g in pert_genes], dtype=np.bool_)
 
-    if adjacencies is None:
-        adj_meta = dataset.metadata.get("adjacency")
-        if adj_meta is None:
-            raise ValueError("Adjacency required for CGIO residual (provide via metadata or parameter).")
-        adjacencies = [np.asarray(adj_meta, dtype=np.float32)]
-    adj_tensors = [torch.as_tensor(a, dtype=torch.float32, device=device) for a in adjacencies]
+    adjacencies = _coerce_adjacencies(adjacencies, dataset, name="CGIO residual")
+    adj_tensors = [_adjacency_to_tensor(a, device=device) for a in adjacencies]
 
     model = CGIO(
         n_genes=dataset.n_genes,
@@ -421,12 +469,8 @@ def fit_predict_perturbfm_v3(
     ctx_idx_all = np.array([ctx_map[c] for c in dataset.obs["context_id"]], dtype=np.int64)
     pert_mask = pert_genes_to_mask(dataset.obs.get("pert_genes", [[] for _ in range(dataset.n_obs)]), dataset.var)
 
-    if adjacencies is None:
-        adj_meta = dataset.metadata.get("adjacency")
-        if adj_meta is None:
-            raise ValueError("Adjacency required for v3 (provide via metadata or parameter).")
-        adjacencies = [np.asarray(adj_meta, dtype=np.float32)]
-    adj_tensors = [torch.as_tensor(a, dtype=torch.float32, device=device) for a in adjacencies]
+    adjacencies = _coerce_adjacencies(adjacencies, dataset, name="v3")
+    adj_tensors = [_adjacency_to_tensor(a, device=device) for a in adjacencies]
 
     model = PerturbFMv3(
         n_genes=dataset.n_genes,
@@ -518,14 +562,14 @@ def fit_predict_perturbfm_v3a(
     ctx_idx_all = np.array([ctx_map[c] for c in dataset.obs["context_id"]], dtype=np.int64)
     pert_mask = pert_genes_to_mask(dataset.obs.get("pert_genes", [[] for _ in range(dataset.n_obs)]), dataset.var)
 
-    if adjacencies is None:
-        adj_meta = dataset.metadata.get("adjacency")
-        if adj_meta is None:
-            raise ValueError("Adjacency required for v3a (provide via metadata or parameter).")
-        adjacencies = [np.asarray(adj_meta, dtype=np.float32)]
+    adjacencies = _coerce_adjacencies(adjacencies, dataset, name="v3a")
     if hvg_idx is not None:
-        adjacencies = [a[np.ix_(hvg_idx, hvg_idx)] for a in adjacencies]
-    adj_tensors = [torch.as_tensor(a, dtype=torch.float32, device=device) for a in adjacencies]
+        hvg_idx = np.asarray(hvg_idx, dtype=np.int64)
+        adjacencies = [
+            _subset_sparse_adjacency(a, hvg_idx) if isinstance(a, dict) else np.asarray(a, dtype=np.float32)[np.ix_(hvg_idx, hvg_idx)]
+            for a in adjacencies
+        ]
+    adj_tensors = [_adjacency_to_tensor(a, device=device) for a in adjacencies]
 
     model = PerturbFMv3a(
         n_genes=dataset.n_genes,
@@ -606,12 +650,8 @@ def fit_predict_perturbfm_v3_residual(
     pert_genes = dataset.obs.get("pert_genes", [[] for _ in range(dataset.n_obs)])
     combo_mask = np.array([len(g) >= 2 for g in pert_genes], dtype=np.bool_)
 
-    if adjacencies is None:
-        adj_meta = dataset.metadata.get("adjacency")
-        if adj_meta is None:
-            raise ValueError("Adjacency required for v3 residual (provide via metadata or parameter).")
-        adjacencies = [np.asarray(adj_meta, dtype=np.float32)]
-    adj_tensors = [torch.as_tensor(a, dtype=torch.float32, device=device) for a in adjacencies]
+    adjacencies = _coerce_adjacencies(adjacencies, dataset, name="v3 residual")
+    adj_tensors = [_adjacency_to_tensor(a, device=device) for a in adjacencies]
 
     model = PerturbFMv3(
         n_genes=dataset.n_genes,

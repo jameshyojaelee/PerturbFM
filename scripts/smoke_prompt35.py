@@ -21,6 +21,7 @@ from perturbfm.train.trainer import (
     fit_predict_perturbfm_v3_residual,
     get_baseline,
 )
+from perturbfm.utils.graph_io import load_graph_npz
 
 
 def _load_config(path: Path) -> Dict[str, Any]:
@@ -45,11 +46,7 @@ def _load_adjacencies(adj_cfg) -> List[np.ndarray] | None:
     if adj_cfg is None:
         return None
     adj_paths = adj_cfg if isinstance(adj_cfg, list) else [adj_cfg]
-    adjs = []
-    for path in adj_paths:
-        with np.load(path) as npz:
-            adjs.append(npz["adjacency"])
-    return adjs
+    return [load_graph_npz(path) for path in adj_paths]
 
 
 def main() -> int:

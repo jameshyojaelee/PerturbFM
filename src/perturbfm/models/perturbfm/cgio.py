@@ -25,10 +25,17 @@ class GraphPropagator(nn.Module):
         self.edges = []
         self.num_nodes = []
         for adj in adjacencies:
-            edge_index = adj.nonzero(as_tuple=False).t().contiguous()
-            edge_weight = adj[edge_index[0], edge_index[1]]
+            if hasattr(adj, "is_sparse") and adj.is_sparse:
+                adj = adj.coalesce()
+                edge_index = adj.indices()
+                edge_weight = adj.values()
+                num_nodes = adj.shape[0]
+            else:
+                edge_index = adj.nonzero(as_tuple=False).t().contiguous()
+                edge_weight = adj[edge_index[0], edge_index[1]]
+                num_nodes = adj.shape[0]
             self.edges.append((edge_index, edge_weight))
-            self.num_nodes.append(adj.shape[0])
+            self.num_nodes.append(num_nodes)
 
         if gating_mode is None:
             gating_mode = "scalar" if use_gating else "none"

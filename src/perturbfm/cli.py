@@ -457,9 +457,11 @@ def _cmd_train_perturbfm_v1(args: argparse.Namespace) -> int:
     import numpy as np
 
     from perturbfm.eval.evaluator import run_perturbfm_v1
+    from perturbfm.utils.graph_io import load_graph_npz
 
-    with np.load(args.adjacency) as npz:
-        adjacency = npz["adjacency"]
+    adjacency = load_graph_npz(args.adjacency)
+    if isinstance(adjacency, dict):
+        raise ValueError("v1 requires dense adjacency with key 'adjacency' in the .npz file.")
     pert_map = json.loads(Path(args.pert_masks).read_text(encoding="utf-8"))
     pert_gene_masks = {}
     for pert_id, indices in pert_map.items():
@@ -494,15 +496,14 @@ def _cmd_train_perturbfm_v1(args: argparse.Namespace) -> int:
 
 
 def _cmd_train_perturbfm_v2(args: argparse.Namespace) -> int:
-    import numpy as np
     from perturbfm.eval.evaluator import run_perturbfm_v2
+    from perturbfm.utils.graph_io import load_graph_npz
 
     adjs = None
     if args.adjacency:
         adjs = []
         for path in args.adjacency:
-            with np.load(path) as npz:
-                adjs.append(npz["adjacency"])
+            adjs.append(load_graph_npz(path))
     run_dir = run_perturbfm_v2(
         data_path=args.data,
         split_hash=args.split,
@@ -527,15 +528,14 @@ def _cmd_train_perturbfm_v2(args: argparse.Namespace) -> int:
 
 
 def _cmd_train_perturbfm_v2_residual(args: argparse.Namespace) -> int:
-    import numpy as np
     from perturbfm.eval.evaluator import run_perturbfm_v2_residual
+    from perturbfm.utils.graph_io import load_graph_npz
 
     adjs = None
     if args.adjacency:
         adjs = []
         for path in args.adjacency:
-            with np.load(path) as npz:
-                adjs.append(npz["adjacency"])
+            adjs.append(load_graph_npz(path))
     run_dir = run_perturbfm_v2_residual(
         data_path=args.data,
         split_hash=args.split,
@@ -560,15 +560,14 @@ def _cmd_train_perturbfm_v2_residual(args: argparse.Namespace) -> int:
 
 
 def _cmd_train_perturbfm_v3(args: argparse.Namespace) -> int:
-    import numpy as np
     from perturbfm.eval.evaluator import run_perturbfm_v3
+    from perturbfm.utils.graph_io import load_graph_npz
 
     adjs = None
     if args.adjacency:
         adjs = []
         for path in args.adjacency:
-            with np.load(path) as npz:
-                adjs.append(npz["adjacency"])
+            adjs.append(load_graph_npz(path))
     run_dir = run_perturbfm_v3(
         data_path=args.data,
         split_hash=args.split,
@@ -593,15 +592,14 @@ def _cmd_train_perturbfm_v3(args: argparse.Namespace) -> int:
 
 
 def _cmd_train_perturbfm_v3a(args: argparse.Namespace) -> int:
-    import numpy as np
     from perturbfm.eval.evaluator import run_perturbfm_v3a
+    from perturbfm.utils.graph_io import load_graph_npz
 
     adjs = None
     if args.adjacency:
         adjs = []
         for path in args.adjacency:
-            with np.load(path) as npz:
-                adjs.append(npz["adjacency"])
+            adjs.append(load_graph_npz(path))
     run_dir = run_perturbfm_v3a(
         data_path=args.data,
         split_hash=args.split,
@@ -627,15 +625,14 @@ def _cmd_train_perturbfm_v3a(args: argparse.Namespace) -> int:
 
 
 def _cmd_train_perturbfm_v3_residual(args: argparse.Namespace) -> int:
-    import numpy as np
     from perturbfm.eval.evaluator import run_perturbfm_v3_residual
+    from perturbfm.utils.graph_io import load_graph_npz
 
     adjs = None
     if args.adjacency:
         adjs = []
         for path in args.adjacency:
-            with np.load(path) as npz:
-                adjs.append(npz["adjacency"])
+            adjs.append(load_graph_npz(path))
     run_dir = run_perturbfm_v3_residual(
         data_path=args.data,
         split_hash=args.split,

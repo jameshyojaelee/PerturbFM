@@ -7,7 +7,17 @@ import argparse
 import json
 from pathlib import Path
 
-from perturbfm.eval.evaluator import run_baseline, run_perturbfm_v0, run_perturbfm_v1, run_perturbfm_v2, run_perturbfm_v2_residual, run_perturbfm_v3, run_perturbfm_v3_residual, run_perturbfm_v3a
+from perturbfm.eval.evaluator import (
+    run_baseline,
+    run_perturbfm_v0,
+    run_perturbfm_v1,
+    run_perturbfm_v2,
+    run_perturbfm_v2_residual,
+    run_perturbfm_v3,
+    run_perturbfm_v3_residual,
+    run_perturbfm_v3a,
+)
+from perturbfm.utils.graph_io import load_graph_npz
 
 
 def _run_model(cfg, data_path, split_hash, out_dir):
@@ -20,8 +30,9 @@ def _run_model(cfg, data_path, split_hash, out_dir):
         import numpy as np
         import json as pyjson
 
-        with np.load(cfg["adjacency"]) as npz:
-            adjacency = npz["adjacency"]
+        adjacency = load_graph_npz(cfg["adjacency"])
+        if isinstance(adjacency, dict):
+            raise ValueError("v1 requires dense adjacency with key 'adjacency' in the .npz file.")
         pert_map = pyjson.loads(Path(cfg["pert_masks"]).read_text(encoding="utf-8"))
         pert_gene_masks = {}
         for pert_id, indices in pert_map.items():
@@ -33,18 +44,43 @@ def _run_model(cfg, data_path, split_hash, out_dir):
         return run_perturbfm_v1(data_path, split_hash, adjacency=adjacency, pert_gene_masks=pert_gene_masks, out_dir=out_dir, eval_split="test", **params)
     if kind == "v2":
         params = {k: v for k, v in cfg.items() if k != "kind"}
+        if "adjacency" in params and params["adjacency"] is not None:
+            adj_paths = params["adjacency"]
+            if not isinstance(adj_paths, list):
+                adj_paths = [adj_paths]
+            params["adjacency"] = [load_graph_npz(p) for p in adj_paths]
         return run_perturbfm_v2(data_path, split_hash, out_dir=out_dir, eval_split="test", **params)
     if kind == "v2_residual":
         params = {k: v for k, v in cfg.items() if k != "kind"}
+        if "adjacency" in params and params["adjacency"] is not None:
+            adj_paths = params["adjacency"]
+            if not isinstance(adj_paths, list):
+                adj_paths = [adj_paths]
+            params["adjacency"] = [load_graph_npz(p) for p in adj_paths]
         return run_perturbfm_v2_residual(data_path, split_hash, out_dir=out_dir, eval_split="test", **params)
     if kind == "v3":
         params = {k: v for k, v in cfg.items() if k != "kind"}
+        if "adjacency" in params and params["adjacency"] is not None:
+            adj_paths = params["adjacency"]
+            if not isinstance(adj_paths, list):
+                adj_paths = [adj_paths]
+            params["adjacency"] = [load_graph_npz(p) for p in adj_paths]
         return run_perturbfm_v3(data_path, split_hash, out_dir=out_dir, eval_split="test", **params)
     if kind == "v3_residual":
         params = {k: v for k, v in cfg.items() if k != "kind"}
+        if "adjacency" in params and params["adjacency"] is not None:
+            adj_paths = params["adjacency"]
+            if not isinstance(adj_paths, list):
+                adj_paths = [adj_paths]
+            params["adjacency"] = [load_graph_npz(p) for p in adj_paths]
         return run_perturbfm_v3_residual(data_path, split_hash, out_dir=out_dir, eval_split="test", **params)
     if kind == "v3a":
         params = {k: v for k, v in cfg.items() if k != "kind"}
+        if "adjacency" in params and params["adjacency"] is not None:
+            adj_paths = params["adjacency"]
+            if not isinstance(adj_paths, list):
+                adj_paths = [adj_paths]
+            params["adjacency"] = [load_graph_npz(p) for p in adj_paths]
         return run_perturbfm_v3a(data_path, split_hash, out_dir=out_dir, eval_split="test", **params)
     raise ValueError(f"Unknown model kind: {kind}")
 
