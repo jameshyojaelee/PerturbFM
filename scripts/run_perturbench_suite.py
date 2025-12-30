@@ -356,6 +356,17 @@ def main() -> int:
             record.update({"status": "failed", "error": str(exc)})
             if args.fail_fast:
                 raise
+        finally:
+            try:
+                import gc
+
+                gc.collect()
+                import torch
+
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+            except Exception:
+                pass
         records.append(record)
 
     summary_path = out_path.parent / f"runs_summary_{args.eval_split}.json"

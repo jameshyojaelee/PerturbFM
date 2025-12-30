@@ -1,0 +1,30 @@
+{
+  "datasets": [
+    {"name": "norman19", "path": "data/artifacts/perturbench/norman19", "splits": ["da58b88d99c4133b173cf75d4998649a36974d7ec4ebd831930a10328cfe0b1b"]}
+  ],
+  "models": [
+    {
+      "kind": "v3",
+      "epochs": 1,
+      "hidden_dim": 64,
+      "batch_size": 32,
+      "device": "cuda",
+      "adjacency": "graphs/norman19_identity.npz"
+    },
+    {
+      "kind": "v3a",
+      "epochs": 1,
+      "hidden_dim": 64,
+      "batch_size": 4,
+      "device": "cuda",
+      "adjacency": "graphs/norman19_identity.npz",
+      "n_heads": 4,
+      "n_layers": 2,
+      "dropout": 0.1,
+      "hvg_count": 2000
+    }
+  ],
+  "seeds": [0],
+  "score_metric": "perturbench.RMSE",
+  "score_mode": "min"
+}

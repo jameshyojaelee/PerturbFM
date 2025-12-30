@@ -1,0 +1,30 @@
+{
+  "datasets": [
+    {"name": "xiehon2017", "path": "data/artifacts/scperturb/xiehon2017", "splits": ["b8613d05c135cab50c2986a67689235cd5bc6857b3e3128273fd2dc0c6f8ae46"]}
+  ],
+  "models": [
+    {
+      "kind": "v3",
+      "epochs": 1,
+      "hidden_dim": 64,
+      "batch_size": 16,
+      "device": "cuda",
+      "adjacency": "graphs/xiehon2017_identity.npz"
+    },
+    {
+      "kind": "v3a",
+      "epochs": 1,
+      "hidden_dim": 64,
+      "batch_size": 2,
+      "device": "cuda",
+      "adjacency": "graphs/xiehon2017_identity.npz",
+      "n_heads": 4,
+      "n_layers": 2,
+      "dropout": 0.1,
+      "hvg_count": 2000
+    }
+  ],
+  "seeds": [0],
+  "score_metric": "scperturbench.MSE",
+  "score_mode": "min"
+}
