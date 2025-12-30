@@ -60,31 +60,21 @@ If you can’t see the image above for some reason, read it as:
 - **Common prediction target (all models)**
   - predict the perturbation **delta** in gene space: `delta = X_pert - X_control` (shape `[N, G]`)
   - neural variants output a Gaussian in delta space: `mean_delta, var_delta` (both `[B, G]`), so `X_pert_pred = X_control + mean_delta`
-- **Baselines**
-  - `control_only`, `global_mean`, `per_perturbation_mean`, `per_perturbation_context_mean`
-    - mean-delta baselines that use `pert_id` / `context_id` group structure (and ignore `X_control`)
-  - `ridge` (predict delta from `X_control` via linear ridge regression)
-  - `latent_shift` (PCA over `X_control`, learn per-perturbation shifts in latent space)
-- **PerturbFM v0**
-  - **cell encoder:** 2-layer MLP over `X_control` → `cell_emb ∈ R^d`
-  - **perturbation encoder:** embedding lookup over `pert_id` (`pert_idx`) → `pert_emb ∈ R^d` (ID-based; no gene set required)
-  - **context encoder:** embedding lookup over `context_id` → `ctx_emb ∈ R^d`
-  - **head:** additive mean from (basal + context + perturbation) + per-gene variance from concatenated embeddings
-- **PerturbFM v1**
-  - **cell/context encoders:** same as v0
-  - **perturbation encoder:** gene mask `pert_mask ∈ {0,1}^G` + message passing over an adjacency graph
-  - **trust gating:** optional edge gating modes (`scalar`, `node`, `lowrank`, `mlp`) to downweight unreliable graph edges
-- **PerturbFM v2 (CGIO)**
-  - **state-independent** intervention model (does not use `X_control`)
-  - intervention is a **gene set** (`obs["pert_genes"]` → `pert_mask`)
-  - propagate `pert_mask` over one or more graphs (with gating), mix graphs with context-dependent weights
-  - predict delta via a **context-conditioned low-rank operator** (mixture over learned bases)
-- **PerturbFM v3**
-  - **state-dependent CGIO:** conditions on `X_control` via a cell encoder to model state-dependent effects
-  - fuse `(cell_emb, propagated_pert_emb, ctx_emb)` → `mean_delta, var_delta`
-- **PerturbFM v3a**
-  - v3 with a **Transformer-based cell encoder**: genes-as-tokens with (gene embedding + projected expression value), then mean-pool
-  - practical knob: optional train-only HVG selection (`--hvg-count`) to reduce sequence length and memory
+
+| Model (CLI) | Cell encoder (uses `X_control`?) | Perturbation input | Graph use | Context input | Output |
+|---|---|---|---|---|---|
+| Baseline: `control_only` | No | None | No | No | `mean_delta` (zeros) + constant per-gene `var` from train residuals |
+| Baseline: `global_mean` | No | `pert_id` (ignored) | No | No | `mean_delta` (global train mean) + constant per-gene `var` |
+| Baseline: `per_perturbation_mean` | No | `pert_id` (group mean) | No | No | `mean_delta` (per-pert train mean) + constant per-gene `var` |
+| Baseline: `per_perturbation_context_mean` | No | `pert_id` (group mean) | No | `context_id` (group mean) | `mean_delta` (per pert×context mean) + constant per-gene `var` |
+| Baseline: `additive_mean` | No | `obs["pert_genes"]` (sum single-gene means) | No | No | `mean_delta` (additive gene-wise sum) + constant per-gene `var` |
+| Baseline: `ridge` | Linear ridge regressor on `X_control` | None | No | No | `mean_delta` (linear) + constant per-gene `var` |
+| Baseline: `latent_shift` | PCA on `X_control` (linear latent space) | `pert_id` (learn latent shifts) | No | No | `mean_delta` (latent shift) + constant per-gene `var` |
+| PerturbFM v0 (`perturbfm-v0`) | MLP (`X_control → cell_emb ∈ R^d`) | `pert_id → pert_idx → pert_emb ∈ R^d` (ID embedding) | No | `context_id → ctx_emb ∈ R^d` | `mean_delta`, `var_delta` (per-sample, per-gene) |
+| PerturbFM v1 (`perturbfm-v1`) | MLP (`X_control → cell_emb`) | `pert_mask ∈ {0,1}^G` (from pert→genes mask) | Yes (single adjacency) + optional edge gating | `context_id → ctx_emb` | `mean_delta`, `var_delta` |
+| PerturbFM v2 / CGIO (`perturbfm-v2`) | No (state-independent) | `obs["pert_genes"] → pert_mask` | Yes (1+ graphs) + gating + context-weighted graph mixing | `context_id → ctx_emb` | `mean_delta`, `var_delta` |
+| PerturbFM v3 (`perturbfm-v3`) | MLP (`X_control → cell_emb`) | `obs["pert_genes"] → pert_mask` | Yes (1+ graphs) + gating + context-weighted graph mixing | `context_id → ctx_emb` | `mean_delta`, `var_delta` |
+| PerturbFM v3a (`perturbfm-v3a`) | Transformer genes-as-tokens (mean-pooled) | `obs["pert_genes"] → pert_mask` | Yes (1+ graphs) + gating + context-weighted graph mixing | `context_id → ctx_emb` | `mean_delta`, `var_delta` |
 
 CGIO sketch:
 
