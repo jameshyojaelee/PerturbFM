@@ -57,23 +57,34 @@ If you can’t see the image above for some reason, read it as:
 
 ## Models (at a glance)
 
+- **Common prediction target (all models)**
+  - predict the perturbation **delta** in gene space: `delta = X_pert - X_control` (shape `[N, G]`)
+  - neural variants output a Gaussian in delta space: `mean_delta, var_delta` (both `[B, G]`), so `X_pert_pred = X_control + mean_delta`
 - **Baselines**
   - `control_only`, `global_mean`, `per_perturbation_mean`, `per_perturbation_context_mean`
-  - `ridge` (predict delta from control expression), `latent_shift` (PCA shift)
+    - mean-delta baselines that use `pert_id` / `context_id` group structure (and ignore `X_control`)
+  - `ridge` (predict delta from `X_control` via linear ridge regression)
+  - `latent_shift` (PCA over `X_control`, learn per-perturbation shifts in latent space)
 - **PerturbFM v0**
-  - simple probabilistic model in delta space (mean + per-gene variance)
-  - inputs: control expression + learned perturbation/context embeddings
+  - **cell encoder:** 2-layer MLP over `X_control` → `cell_emb ∈ R^d`
+  - **perturbation encoder:** embedding lookup over `pert_id` (`pert_idx`) → `pert_emb ∈ R^d` (ID-based; no gene set required)
+  - **context encoder:** embedding lookup over `context_id` → `ctx_emb ∈ R^d`
+  - **head:** additive mean from (basal + context + perturbation) + per-gene variance from concatenated embeddings
 - **PerturbFM v1**
-  - graph-augmented perturbation encoder + trust gating
-  - intended for multi-gene perturbations when you have a gene graph
+  - **cell/context encoders:** same as v0
+  - **perturbation encoder:** gene mask `pert_mask ∈ {0,1}^G` + message passing over an adjacency graph
+  - **trust gating:** optional edge gating modes (`scalar`, `node`, `lowrank`, `mlp`) to downweight unreliable graph edges
 - **PerturbFM v2 (CGIO)**
-  - intervention is a **gene set** (`obs["pert_genes"]`)
-  - propagate intervention over one or more graphs (with gating)
-  - predict delta via a **context-conditioned low-rank operator**
+  - **state-independent** intervention model (does not use `X_control`)
+  - intervention is a **gene set** (`obs["pert_genes"]` → `pert_mask`)
+  - propagate `pert_mask` over one or more graphs (with gating), mix graphs with context-dependent weights
+  - predict delta via a **context-conditioned low-rank operator** (mixture over learned bases)
 - **PerturbFM v3**
-  - conditions on `x_control` to model state-dependent perturbation effects
+  - **state-dependent CGIO:** conditions on `X_control` via a cell encoder to model state-dependent effects
+  - fuse `(cell_emb, propagated_pert_emb, ctx_emb)` → `mean_delta, var_delta`
 - **PerturbFM v3a**
-  - v3 with a Transformer-based cell encoder (Gaussian head)
+  - v3 with a **Transformer-based cell encoder**: genes-as-tokens with (gene embedding + projected expression value), then mean-pool
+  - practical knob: optional train-only HVG selection (`--hvg-count`) to reduce sequence length and memory
 
 CGIO sketch:
 
